@@ -11,6 +11,7 @@ from engine_sim.core import (
     SimulationLoop,
     DynoReading,
 )
+from engine_sim.session import DynoSession, DynoSnapshot
 
 __all__ = [
     "CamSpec",
@@ -26,4 +27,6 @@ __all__ = [
     "DynoBrake",
     "SimulationLoop",
     "DynoReading",
+    "DynoSession",
+    "DynoSnapshot",
 ]

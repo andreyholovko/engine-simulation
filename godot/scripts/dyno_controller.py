@@ -1,9 +1,9 @@
-"""py4godot Node wrapping the pure-Python engine_sim simulation core.
-
-This is the *only* place Godot and engine_sim touch. Everything upstream of
-here (Engine/Turbo/ECU/DynoBrake) is plain, Godot-agnostic Python, importable
-and testable with plain pytest -- see repo root `engine_sim/` and `tests/`.
-If py4godot's embedding ever becomes a dead end, only this adapter needs
+"""py4godot Node wrapping DynoSession -- the single interface every dyno
+frontend (this Godot UI, the CLI, and any future consumer, e.g. a 3D
+drag-strip view) drives. All the simulation math lives in engine_sim (pure
+Python, Godot-agnostic, tested with plain pytest); this file's only job is
+moving numbers between DynoSession and Godot's exported node properties. If
+py4godot's embedding ever becomes a dead end, only this adapter needs
 replacing, not the simulation itself.
 """
 
@@ -26,22 +26,22 @@ def _ensure_engine_sim_importable() -> None:
 
 _ensure_engine_sim_importable()
 
-from engine_sim import ECU, DynoBrake, ParametricEngine, SimulationLoop, Turbo  # noqa: E402
-from engine_sim.presets import EA888_GEN3_IS20, TURBO_IS20  # noqa: E402
+from engine_sim import DynoSession  # noqa: E402
 
 
 @gdclass
 class dyno_controller(Node):
 	"""Every attribute below is exactly what a real ECU could report on its
 	data bus -- this drives the dyno's live readout, not a display-only mock.
-	Inputs (set from the UI): afr_override, boost_target_percent, power_pull_active.
-	Outputs (read by the UI every frame): everything else.
+	Inputs (set from the UI): afr_override, boost_target_percent, and the
+	start_power_pull()/stop_power_pull() methods. Outputs (read by the UI
+	every frame): everything else, including power_pull_active, which mirrors
+	the session's own state -- it is not itself a control input.
 	"""
 
 	# --- inputs, driven by the UI scene ---
 	afr_override: float = -1.0  # -1 = let the ECU's own control law decide
 	boost_target_percent: float = 100.0  # wastegate authority, 0-100% of max boost
-	power_pull_active: bool = False
 	ramp_rate_rpm_s: float = 400.0
 
 	# --- live readout, updated every physics tick ---
@@ -55,61 +55,48 @@ class dyno_controller(Node):
 	effective_compression_ratio: float = 0.0
 	volumetric_efficiency: float = 0.0
 	rev_limiter_active: bool = False
+	power_pull_active: bool = False
 
 	power_pull_finished = signal([])
 
 	def __init__(self):
 		super().__init__()
-		self._loop: Optional[SimulationLoop] = None
+		self._session: Optional[DynoSession] = None
 
 	def _ready(self) -> None:
-		engine = ParametricEngine(EA888_GEN3_IS20)
-		turbo = Turbo(TURBO_IS20)
-		ecu = ECU(engine, turbo)
-		brake = DynoBrake()
-		self._loop = SimulationLoop(ecu, brake)
-		self.rpm = self._loop.rpm
+		self._session = DynoSession()
+		self.rpm = self._session.loop.rpm
 
 	def _physics_process(self, delta: float) -> None:
-		if self._loop is None:
+		if self._session is None:
 			return
 
-		ecu = self._loop.ecu
-		ecu.set_target_afr(self.afr_override if self.afr_override >= 0.0 else None)
-		ecu.set_boost_target_fraction(max(0.0, min(1.0, self.boost_target_percent / 100.0)))
+		self._session.set_afr_override(self.afr_override if self.afr_override >= 0.0 else None)
+		self._session.set_boost_target_percent(self.boost_target_percent)
 
-		if self.power_pull_active:
-			reading = self._loop.tick(
-				delta,
-				throttle=1.0,
-				mode="ramp_rpm",
-				ramp_rate_rpm_s=self.ramp_rate_rpm_s,
-			)
-			if self._loop.rpm >= ecu.rev_limiter_threshold_rpm:
-				self.power_pull_active = False
-				self.power_pull_finished.emit()
-		else:
-			# Idle: no throttle input in this UI, engine sits off between pulls.
-			reading = self._loop.tick(delta, throttle=0.0, mode="free_accel")
+		was_active = self._session.is_power_pull_active
+		snapshot = self._session.tick(delta, throttle_percent=0.0)
 
-		self.rpm = reading.rpm
-		self.torque_nm = reading.engine.net_torque_nm
-		self.power_kw = reading.power_kw
-		self.boost_bar = reading.boost_bar
-		self.afr_actual = reading.engine.afr_actual
-		self.air_mass_flow_g_s = reading.engine.air_mass_flow_kg_s * 1000.0
-		self.fuel_mass_flow_g_s = reading.engine.fuel_mass_flow_kg_s * 1000.0
-		self.effective_compression_ratio = reading.engine.effective_compression_ratio
-		self.volumetric_efficiency = reading.engine.ve
-		self.rev_limiter_active = ecu.rev_limiter_active(reading.rpm)
+		self.power_pull_active = snapshot.power_pull_active
+		if was_active and not snapshot.power_pull_active:
+			self.power_pull_finished.emit()
+
+		self.rpm = snapshot.rpm
+		self.torque_nm = snapshot.torque_nm
+		self.power_kw = snapshot.power_kw
+		self.boost_bar = snapshot.boost_bar
+		self.afr_actual = snapshot.afr_actual
+		self.air_mass_flow_g_s = snapshot.air_mass_flow_g_s
+		self.fuel_mass_flow_g_s = snapshot.fuel_mass_flow_g_s
+		self.effective_compression_ratio = snapshot.effective_compression_ratio
+		self.volumetric_efficiency = snapshot.volumetric_efficiency
+		self.rev_limiter_active = snapshot.rev_limiter_active
 
 	def start_power_pull(self) -> None:
-		if self._loop is None:
+		if self._session is None:
 			return
-
-		self._loop.rpm = self._loop.ecu.engine.spec.idle_rpm
-		self._loop.ecu.turbo.reset()
-		self.power_pull_active = True
+		self._session.start_power_pull(self.ramp_rate_rpm_s)
 
 	def stop_power_pull(self) -> None:
-		self.power_pull_active = False
+		if self._session is not None:
+			self._session.stop_power_pull()

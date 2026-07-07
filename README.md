@@ -12,6 +12,10 @@ engine_sim/                    Pure Python simulation core (zero Godot imports)
   specs.py                     EngineSpec / TurboSpec / CamSpec -- data-driven params,
                                 shared by core/ and presets/, kept at top level since
                                 both depend on it
+  session.py                   DynoSession -- the one interface every frontend drives
+                                (construction, live-override controls, and a flattened
+                                DynoSnapshot for display), so the CLI, Godot, and any
+                                future consumer can never silently diverge
   core/                        The simulation itself
     engine.py                  Engine (abstract) + ParametricEngine (mean-value engine model)
     turbo.py                   Turbo: spool lag + wastegate-controlled boost target
@@ -28,7 +32,7 @@ tests/                         pytest suite, incl. validation against published 
 godot/                         Godot 4.7+ project
   addons/py4godot/             Embedded-Python GDExtension (gitignored -- see setup below)
   scripts/
-    dyno_controller.py         py4godot Node: owns a SimulationLoop, ticks it every frame
+    dyno_controller.py         py4godot Node: owns a DynoSession, ticks it every frame
     dyno_ui.gd                 Wires sliders/buttons/labels to the controller
     dyno_graph.gd              Live torque/power-vs-rpm plot
   scenes/Dyno.tscn             The dyno interface
@@ -49,8 +53,20 @@ real hardware-in-the-loop ECU test rigs: given throttle/RPM/manifold pressure
 it computes air mass flow, fuel flow, and net crank torque from actual engine
 parameters (displacement, cylinders, compression ratio, cam profile), not a
 canned curve. `dyno_controller.py` is the *only* file where Godot and
-engine_sim touch, wrapping a `SimulationLoop` as a py4godot Node. If the
+engine_sim touch, wrapping a `DynoSession` as a py4godot Node. If the
 py4godot binding ever becomes a dead end, only that adapter needs replacing.
+
+**`DynoSession` (`engine_sim/session.py`) is the one interface every
+consumer drives** -- `dyno_cli.py` and `dyno_controller.py` each used to
+hand-build their own `Engine`/`Turbo`/`ECU`/`SimulationLoop` and hand-flatten
+readings for display; both copies happened to agree, but nothing enforced
+that. Now both just do `DynoSession()`, call `set_afr_override()` /
+`set_boost_target_percent()` / `start_power_pull()` / `tick()`, and read a
+`DynoSnapshot` back. `tests/test_session.py` locks this in with a test that
+builds two independent sessions and asserts they produce bit-identical
+curves -- a future 3rd consumer (a 3D drag-strip view) should do the same
+`DynoSession()` construction rather than reaching into `engine_sim.core`
+directly.
 
 ## Running the Python simulation (fully verified, no Godot needed)
 
@@ -59,7 +75,7 @@ py4godot binding ever becomes a dead end, only that adapter needs replacing.
 .venv/bin/python -m pytest -q
 ```
 
-14 tests pass, including validation against VW's own published EA888 Gen3
+19 tests pass, including validation against VW's own published EA888 Gen3
 figures (147kW/200PS, 320Nm torque plateau 1500-4400rpm, IS20 full boost by
 ~3200rpm). The simulated curve lands at 323.8Nm peak torque @ 2636rpm and
 156.1kW peak power @ 4928rpm -- within the tolerances documented in
@@ -69,12 +85,13 @@ There's also a regression test guarding a real bug that turned up during
 manual testing: a power pull run right after free-play use used to carry over
 residual turbo boost instead of starting cold from idle.
 
-**Which presets are actually live:** `dyno_controller.py` and `dyno_cli.py`
-both hardcode `EA888_GEN3_IS20` / `TURBO_IS20` from `engine_sim/presets.py`.
-`EA888_GEN3B_IS38` / `TURBO_IS38` exist for variety but nothing wires them up
--- editing `TURBO_IS38.max_boost_bar` (easy to do by mistake, both presets
-live in the same file) has no effect on anything you can see. If you want to
-change the turbo's max boost, edit `TURBO_IS20.max_boost_bar`.
+**Which presets are actually live:** `DynoSession()`'s defaults are
+`EA888_GEN3_IS20` / `TURBO_IS20` (`engine_sim/presets/`), which is what both
+`dyno_controller.py` and `dyno_cli.py` get. `EA888_GEN3B_IS38` / `TURBO_IS38`
+exist for variety but nothing constructs them -- editing `TURBO_IS38`'s
+`max_boost_bar` (easy to do by mistake, presets live in neighboring files) has
+no effect on anything you can see. If you want to change the turbo's max
+boost, edit `TURBO_IS20.max_boost_bar`.
 
 ## Fastest way to actually drive it: `dyno_cli.py`
 
@@ -89,6 +106,7 @@ No Godot required. An interactive terminal dyno against the exact same
 dyno> throttle 100
 dyno> step 3            # advance 3s at current throttle, free-play mode
 dyno> afr 11.5           # override target AFR (or "afr auto" to release it)
+dyno> boost 50           # cap wastegate authority at 50% of max boost (or "boost auto")
 dyno> sweep              # paced WOT power pull, prints the torque/power curve
 dyno> quit
 ```
