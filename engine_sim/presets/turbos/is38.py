@@ -2,7 +2,7 @@
 dyno_controller.py or dyno_cli.py constructs this preset, so editing it has
 no visible effect anywhere. Change TURBO_IS20 instead for the live dyno."""
 
-from ...specs import TurboSpec
+from engine_sim import TurboSpec
 
 TURBO_IS38 = TurboSpec(
     name="IHI IS38",

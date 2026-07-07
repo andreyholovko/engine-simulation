@@ -23,9 +23,9 @@ from engine_sim.presets import EA888_GEN3_IS20, TURBO_IS20
 def build_loop() -> SimulationLoop:
     engine = ParametricEngine(EA888_GEN3_IS20)
     turbo = Turbo(TURBO_IS20)
-    ecu = ECU(EA888_GEN3_IS20, TURBO_IS20)
+    ecu = ECU(engine, turbo)
     brake = DynoBrake()
-    return SimulationLoop(engine, turbo, ecu, brake)
+    return SimulationLoop(ecu, brake)
 
 
 def status_line(loop: SimulationLoop, r) -> str:

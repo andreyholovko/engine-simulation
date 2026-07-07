@@ -6,7 +6,7 @@ or dyno_cli.py; those hardcode EA888_GEN3_IS20. Provided for variety and as
 the Miller-cycle (variable effective compression) example.
 """
 
-from ...specs import CamSpec, EngineSpec
+from engine_sim import CamSpec, EngineSpec
 
 EA888_GEN3B_IS38 = EngineSpec(
     name="EA888 Gen3B evo (Golf R/S3, Miller, IS38)",

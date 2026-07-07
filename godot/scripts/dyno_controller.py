@@ -65,9 +65,9 @@ class dyno_controller(Node):
 	def _ready(self) -> None:
 		engine = ParametricEngine(EA888_GEN3_IS20)
 		turbo = Turbo(TURBO_IS20)
-		ecu = ECU(EA888_GEN3_IS20, TURBO_IS20)
+		ecu = ECU(engine, turbo)
 		brake = DynoBrake()
-		self._loop = SimulationLoop(engine, turbo, ecu, brake)
+		self._loop = SimulationLoop(ecu, brake)
 		self.rpm = self._loop.rpm
 
 	def _physics_process(self, delta: float) -> None:
@@ -106,8 +106,9 @@ class dyno_controller(Node):
 	def start_power_pull(self) -> None:
 		if self._loop is None:
 			return
-		self._loop.rpm = self._loop.engine.spec.idle_rpm
-		self._loop.turbo.reset()
+
+		self._loop.rpm = self._loop.ecu.engine.spec.idle_rpm
+		self._loop.ecu.turbo.reset()
 		self.power_pull_active = True
 
 	def stop_power_pull(self) -> None:

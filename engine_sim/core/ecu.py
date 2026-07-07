@@ -1,9 +1,14 @@
 """ECU: the central controller.
 
-Real ECU responsibilities, modeled here: closed-loop fuel control (AFR
-target), wastegate duty (boost target), rev limiter, and computing intake
-manifold pressure from throttle position + current boost. Every reading the
-dyno displays is something a real ECU could actually report on its data bus.
+The ECU owns the Engine and Turbo and is the *only* thing that talks to them
+each tick -- exactly like a real car, where the ECU reads sensors and drives
+the throttle body/injectors/wastegate, rather than some external loop poking
+each component by hand. `tick()` runs the full sensor-to-actuator sequence in
+the right order (decide wastegate duty -> spool the turbo -> derive manifold
+pressure/load from the *resulting* boost -> decide fuel/rev-limit -> ask the
+engine for torque) and returns one reading with everything in it. Real ECU
+responsibilities modeled here: closed-loop fuel control (AFR target),
+wastegate duty (boost target), and the rev limiter.
 
 AFR target and boost target both have a sane default control law, but can be
 overridden live -- exactly the "adjustable in real time" knobs the dyno needs.
@@ -12,23 +17,30 @@ overridden live -- exactly the "adjustable in real time" knobs the dyno needs.
 from dataclasses import dataclass
 from typing import Optional
 
-from ..specs import EngineSpec, TurboSpec
-from ..units import P_ATM
+from engine_sim.core.engine import Engine, EngineReading
+from engine_sim.core.turbo import Turbo, TurboReading
+from engine_sim.units import P_ATM
 
 
 @dataclass
 class EcuReading:
+    engine: EngineReading
+    turbo: TurboReading
     map_pa: float
     load_fraction: float
     target_afr: float
     wastegate_duty: float
     rev_limiter_active: bool
 
+    @property
+    def boost_bar(self) -> float:
+        return self.turbo.boost_bar
+
 
 class ECU:
-    def __init__(self, engine_spec: EngineSpec, turbo_spec: Optional[TurboSpec] = None):
-        self.engine_spec = engine_spec
-        self.turbo_spec = turbo_spec
+    def __init__(self, engine: Engine, turbo: Turbo):
+        self.engine = engine
+        self.turbo = turbo
         self._afr_override: Optional[float] = None
         self._boost_target_override: Optional[float] = None  # fraction 0..1 of max boost
         self._rev_limiter_headroom_rpm = 150.0
@@ -60,7 +72,7 @@ class ECU:
 
     @property
     def rev_limiter_threshold_rpm(self) -> float:
-        return self.engine_spec.redline_rpm - self._rev_limiter_headroom_rpm
+        return self.engine.spec.redline_rpm - self._rev_limiter_headroom_rpm
 
     def rev_limiter_active(self, rpm: float) -> bool:
         return rpm >= self.rev_limiter_threshold_rpm
@@ -73,18 +85,32 @@ class ECU:
         max_map = P_ATM + boost_pa if boost_pa > 0 else P_ATM
         return max(0.0, min(1.0, map_pa / max_map)) if max_map > 0 else 0.0
 
-    def tick(self, rpm: float, throttle: float, boost_pa: float) -> EcuReading:
-        map_pa = self.intake_manifold_pressure(throttle, boost_pa)
-        load_fraction = self.load_fraction(map_pa, boost_pa)
-        afr = self.target_afr(throttle)
+    def tick(self, dt: float, rpm: float, throttle: float, intake_temp_k: float = 313.0) -> EcuReading:
+        throttle = max(0.0, min(1.0, throttle))
+
+        wastegate_duty = self.wastegate_duty(rpm, throttle)
+        turbo_reading = self.turbo.tick(dt, rpm, throttle, wastegate_duty)
+        map_pa = self.intake_manifold_pressure(throttle, turbo_reading.boost_pa)
+        load_fraction = self.load_fraction(map_pa, turbo_reading.boost_pa)
+
         limiter = self.rev_limiter_active(rpm)
-        if limiter:
-            # Ignition/fuel cut: starve it back below the limiter threshold.
-            afr = 0.0
+        # Ignition/fuel cut: starve it back below the limiter threshold.
+        target_afr = 0.0 if limiter else self.target_afr(throttle)
+
+        engine_reading = self.engine.compute(
+            rpm=rpm,
+            map_pa=map_pa,
+            target_afr=target_afr,
+            load_fraction=load_fraction,
+            intake_temp_k=intake_temp_k,
+        )
+
         return EcuReading(
+            engine=engine_reading,
+            turbo=turbo_reading,
             map_pa=map_pa,
             load_fraction=load_fraction,
-            target_afr=afr,
-            wastegate_duty=self.wastegate_duty(rpm, throttle),
+            target_afr=target_afr,
+            wastegate_duty=wastegate_duty,
             rev_limiter_active=limiter,
         )

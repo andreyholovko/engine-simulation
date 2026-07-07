@@ -25,10 +25,10 @@ from dataclasses import dataclass
 from math import pi
 from typing import Literal, Optional
 
-from .ecu import ECU
-from .engine import Engine, EngineReading
-from .turbo import Turbo
-from ..units import rpm_to_rad_s, rad_s_to_rpm, power_watts
+from engine_sim.core.ecu import ECU
+from engine_sim.core.engine import EngineReading
+from engine_sim.core.turbo import TurboReading
+from engine_sim.units import rpm_to_rad_s, rad_s_to_rpm, power_watts
 
 DynoMode = Literal["ramp_rpm", "free_accel", "hold_rpm"]
 
@@ -39,10 +39,14 @@ class DynoReading:
     rpm: float
     throttle: float
     engine: EngineReading
-    boost_bar: float
+    turbo: TurboReading
     load_fraction: float
     brake_torque_nm: float
     power_w: float
+
+    @property
+    def boost_bar(self) -> float:
+        return self.turbo.boost_bar
 
     @property
     def power_kw(self) -> float:
@@ -105,19 +109,20 @@ class DynoBrake:
 
 
 class SimulationLoop:
-    """Owns live state (rpm, turbo boost) and advances it one tick at a time."""
+    """Owns live state (rpm) and advances it one tick at a time. Everything
+    about *what happened this tick* -- engine, turbo, fuel, rev limiter -- is
+    the ECU's job (see `ECU.tick`); this loop only integrates the resulting
+    net torque into a new RPM and applies the dyno's own brake/load model."""
 
-    def __init__(self, engine: Engine, turbo: Turbo, ecu: ECU, brake: DynoBrake):
-        self.engine = engine
-        self.turbo = turbo
+    def __init__(self, ecu: ECU, brake: DynoBrake):
         self.ecu = ecu
         self.brake = brake
-        self.rpm = engine.spec.idle_rpm
+        self.rpm = ecu.engine.spec.idle_rpm
         self.time_s = 0.0
 
     @property
     def _total_inertia(self) -> float:
-        return self.engine.spec.crank_inertia_kgm2 + self.brake.dyno_inertia_kgm2
+        return self.ecu.engine.spec.crank_inertia_kgm2 + self.brake.dyno_inertia_kgm2
 
     def tick(
         self,
@@ -130,31 +135,18 @@ class SimulationLoop:
     ) -> DynoReading:
         throttle = max(0.0, min(1.0, throttle))
 
-        ecu_reading = self.ecu.tick(self.rpm, throttle, self.turbo.state.boost_pa)
-        boost_pa = self.turbo.tick(dt, self.rpm, throttle, ecu_reading.wastegate_duty)
-        # Re-derive MAP with the freshly-ticked boost so it's not one tick stale.
-        map_pa = self.ecu.intake_manifold_pressure(throttle, boost_pa)
-        load_fraction = self.ecu.load_fraction(map_pa, boost_pa)
-
-        engine_reading = self.engine.compute(
-            throttle=throttle,
-            rpm=self.rpm,
-            map_pa=map_pa,
-            target_afr=ecu_reading.target_afr,
-            load_fraction=load_fraction,
-            intake_temp_k=intake_temp_k,
-        )
+        ecu_reading = self.ecu.tick(dt, self.rpm, throttle, intake_temp_k)
 
         brake_torque = self.brake.load_torque(
             mode,
             self.rpm,
             dt,
             target_rpm=target_rpm,
-            engine_torque_nm=engine_reading.net_torque_nm,
+            engine_torque_nm=ecu_reading.engine.net_torque_nm,
             total_inertia_kgm2=self._total_inertia,
             ramp_rate_rpm_s=ramp_rate_rpm_s,
         )
-        net_torque = engine_reading.net_torque_nm - brake_torque
+        net_torque = ecu_reading.engine.net_torque_nm - brake_torque
 
         omega = rpm_to_rad_s(self.rpm)
         omega += (net_torque / self._total_inertia) * dt
@@ -162,15 +154,15 @@ class SimulationLoop:
         self.rpm = rad_s_to_rpm(omega)
         self.time_s += dt
 
-        power_w = power_watts(engine_reading.net_torque_nm, rpm_to_rad_s(self.rpm))
+        power_w = power_watts(ecu_reading.engine.net_torque_nm, rpm_to_rad_s(self.rpm))
 
         return DynoReading(
             time_s=self.time_s,
             rpm=self.rpm,
             throttle=throttle,
-            engine=engine_reading,
-            boost_bar=self.turbo.boost_bar,
-            load_fraction=load_fraction,
+            engine=ecu_reading.engine,
+            turbo=ecu_reading.turbo,
+            load_fraction=ecu_reading.load_fraction,
             brake_torque_nm=brake_torque,
             power_w=power_w,
         )
@@ -184,10 +176,10 @@ class SimulationLoop:
     ) -> list[DynoReading]:
         """WOT sweep from idle to redline, paced like a real dyno power pull
         (default ~400rpm/s, ~15s idle-to-redline); returns the full curve."""
-        self.rpm = start_rpm if start_rpm is not None else self.engine.spec.idle_rpm
+        self.rpm = start_rpm if start_rpm is not None else self.ecu.engine.spec.idle_rpm
         self.time_s = 0.0
         self.brake.reset_pid()
-        self.turbo.reset()
+        self.ecu.turbo.reset()
         readings: list[DynoReading] = []
         max_ticks = int(60.0 / dt)  # 60s safety cap
         for _ in range(max_ticks):

@@ -2,7 +2,7 @@
 dyno_controller.py and dyno_cli.py actually use; edit max_boost_bar here to
 change the running dyno's boost ceiling."""
 
-from ...specs import TurboSpec
+from engine_sim import TurboSpec
 
 TURBO_IS20 = TurboSpec(
     name="IHI IS20",

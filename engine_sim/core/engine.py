@@ -16,8 +16,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from math import exp
 
-from ..specs import EngineSpec
-from ..units import R_AIR, LHV_GASOLINE
+from engine_sim.specs import EngineSpec
+from engine_sim.units import R_AIR, LHV_GASOLINE
 
 
 @dataclass
@@ -39,15 +39,17 @@ class EngineReading:
 
 class Engine(ABC):
     """Abstract engine. Concrete engines compute net crank torque for a tick
-    given throttle position, current RPM, intake manifold pressure and an
-    ECU-commanded target AFR / effective-compression hint."""
+    given current RPM, intake manifold pressure (already reflects throttle --
+    the ECU derives it from throttle position + boost before calling this)
+    and an ECU-commanded target AFR / effective-compression hint. Rev-limiting
+    is the ECU's job (it zeroes target_afr, which zeroes torque here through
+    the ordinary physics) -- an engine never needs its own separate cutoff."""
 
     spec: EngineSpec
 
     @abstractmethod
     def compute(
         self,
-        throttle: float,
         rpm: float,
         map_pa: float,
         target_afr: float,
@@ -56,10 +58,6 @@ class Engine(ABC):
     ) -> EngineReading:
         """Compute torque and diagnostics for the current tick. Does not
         integrate rotational dynamics -- that's the simulation loop's job."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def rev_limit_reached(self, rpm: float) -> bool:
         raise NotImplementedError
 
 
@@ -111,7 +109,6 @@ class ParametricEngine(Engine):
 
     def compute(
         self,
-        throttle: float,
         rpm: float,
         map_pa: float,
         target_afr: float,
@@ -142,10 +139,6 @@ class ParametricEngine(Engine):
         friction_torque = self._friction_torque(rpm)
         net_torque = max(0.0, indicated_torque - friction_torque)
 
-        if self.rev_limit_reached(rpm):
-            net_torque = 0.0
-            fuel_mass_flow = 0.0
-
         return EngineReading(
             rpm=rpm,
             map_pa=map_pa,
@@ -158,6 +151,3 @@ class ParametricEngine(Engine):
             friction_torque_nm=friction_torque,
             net_torque_nm=net_torque,
         )
-
-    def rev_limit_reached(self, rpm: float) -> bool:
-        return rpm >= self.spec.redline_rpm

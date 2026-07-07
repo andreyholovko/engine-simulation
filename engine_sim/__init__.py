@@ -1,9 +1,10 @@
-from .specs import CamSpec, EngineSpec, TurboSpec
-from .core import (
+from engine_sim.specs import CamSpec, EngineSpec, TurboSpec
+from engine_sim.core import (
     Engine,
     ParametricEngine,
     EngineReading,
     Turbo,
+    TurboReading,
     ECU,
     EcuReading,
     DynoBrake,
@@ -19,6 +20,7 @@ __all__ = [
     "ParametricEngine",
     "EngineReading",
     "Turbo",
+    "TurboReading",
     "ECU",
     "EcuReading",
     "DynoBrake",

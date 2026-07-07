@@ -5,7 +5,7 @@ VW's own published figures (147kW/200PS, 320Nm torque plateau 1500-4400rpm).
 This is the preset `dyno_controller.py` and `dyno_cli.py` actually use.
 """
 
-from ...specs import CamSpec, EngineSpec
+from engine_sim import CamSpec, EngineSpec
 
 EA888_GEN3_IS20 = EngineSpec(
     name="EA888 Gen3 (MK7 GTI, IS20)",

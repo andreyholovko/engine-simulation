@@ -9,8 +9,12 @@ def test_engine_is_abstract():
         Engine()  # type: ignore[abstract]
 
 
+def _build_ecu(engine_spec=EA888_GEN3_IS20) -> ECU:
+    return ECU(ParametricEngine(engine_spec), Turbo(TURBO_IS20))
+
+
 def test_ecu_afr_override():
-    ecu = ECU(EA888_GEN3_IS20, TURBO_IS20)
+    ecu = _build_ecu()
     assert ecu.target_afr(throttle=1.0) == pytest.approx(12.5)
     ecu.set_target_afr(10.0)
     assert ecu.target_afr(throttle=1.0) == 10.0
@@ -19,17 +23,18 @@ def test_ecu_afr_override():
 
 
 def test_ecu_rev_limiter_cuts_fuel():
-    ecu = ECU(EA888_GEN3_IS20, TURBO_IS20)
-    reading = ecu.tick(rpm=EA888_GEN3_IS20.redline_rpm, throttle=1.0, boost_pa=0.0)
+    ecu = _build_ecu()
+    reading = ecu.tick(dt=0.01, rpm=EA888_GEN3_IS20.redline_rpm, throttle=1.0)
     assert reading.rev_limiter_active
     assert reading.target_afr == 0.0
 
 
 def test_turbo_spools_toward_target_with_lag():
     turbo = Turbo(TURBO_IS20)
-    boost_1 = turbo.tick(dt=0.01, rpm=4000.0, throttle=1.0, wastegate_duty=1.0)
-    boost_2 = turbo.tick(dt=0.01, rpm=4000.0, throttle=1.0, wastegate_duty=1.0)
-    assert 0.0 < boost_1 < boost_2
+    reading_1 = turbo.tick(dt=0.01, rpm=4000.0, throttle=1.0, wastegate_duty=1.0)
+    reading_2 = turbo.tick(dt=0.01, rpm=4000.0, throttle=1.0, wastegate_duty=1.0)
+    assert 0.0 < reading_1.boost_pa < reading_2.boost_pa
+    assert 0.0 < reading_1.spool_fraction < reading_2.spool_fraction < 1.0
 
 
 def test_turbo_no_spool_at_closed_throttle():

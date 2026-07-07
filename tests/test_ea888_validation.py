@@ -13,9 +13,9 @@ from engine_sim.presets import EA888_GEN3_IS20, TURBO_IS20
 def _build_loop() -> SimulationLoop:
     engine = ParametricEngine(EA888_GEN3_IS20)
     turbo = Turbo(TURBO_IS20)
-    ecu = ECU(EA888_GEN3_IS20, TURBO_IS20)
+    ecu = ECU(engine, turbo)
     brake = DynoBrake()
-    return SimulationLoop(engine, turbo, ecu, brake)
+    return SimulationLoop(ecu, brake)
 
 
 def test_power_pull_produces_a_full_curve():
@@ -65,7 +65,7 @@ def test_power_pull_resets_residual_boost_from_prior_use():
     loop = _build_loop()
     for _ in range(200):
         loop.tick(0.02, throttle=1.0, mode="free_accel")
-    assert loop.turbo.boost_bar > 0.1  # sanity: it really did spool up
+    assert loop.ecu.turbo.boost_bar > 0.1  # sanity: it really did spool up
 
     readings = loop.run_power_pull()
     assert readings[0].boost_bar < 0.05
@@ -92,7 +92,7 @@ def test_energy_conservation_free_accel_matches_inertia_method():
     from engine_sim.units import rpm_to_rad_s
 
     alpha = (rpm_to_rad_s(r1.rpm) - rpm_to_rad_s(rpm_before)) / dt
-    total_inertia = loop.engine.spec.crank_inertia_kgm2 + loop.brake.dyno_inertia_kgm2
+    total_inertia = loop.ecu.engine.spec.crank_inertia_kgm2 + loop.brake.dyno_inertia_kgm2
     implied_net_torque = alpha * total_inertia
     expected_net_torque = r1.engine.net_torque_nm - r1.brake_torque_nm
     assert abs(implied_net_torque - expected_net_torque) < 1e-6
