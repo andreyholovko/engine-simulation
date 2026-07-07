@@ -75,7 +75,7 @@ directly.
 .venv/bin/python -m pytest -q
 ```
 
-31 tests pass, including validation against two independently-published
+42 tests pass, including validation against three independently-published
 figures:
 
 - **EA888 Gen3 (MK7 GTI, IS20)** -- VW/Audi's own published 147kW/200PS,
@@ -87,23 +87,34 @@ figures:
   colloquially called "twin-turbo," the B58 uses one turbocharger with a
   twin-scroll housing, not two turbos -- modeled as a single `TurboSpec`,
   same as every other preset here.)
+- **GM LS2 (Corvette C6)** -- GM's published 400hp (298.3kW) @ 6000rpm,
+  400lb-ft (542.4Nm) @ 4400rpm, redline 6500rpm. Simulated: 539.0Nm peak
+  torque @ 4206rpm, 309.6kW peak power @ 5670rpm. The first naturally-
+  aspirated preset (paired with `TURBO_NONE`, `max_boost_bar=0.0` -- no
+  special-casing anywhere, boost just never builds) -- and the first one
+  that needed `EngineSpec.ve_rise_rpm`: turbocharged engines get their
+  low-end torque rise from boost building, but with no boost to lean on, the
+  LS2's volumetric-efficiency curve itself has to rise from idle to its
+  4400rpm peak. Defaults to a no-op (0.0) for every other preset, verified
+  by `tests/test_components.py::test_ve_rise_phase_is_opt_in_only`.
 
 Tolerances are documented in `tests/test_ea888_validation.py` /
-`tests/test_b58_validation.py`, which also explain *why* each is sized the
-way it is (this is a simplified physical model, not a CFD replica). There's
-also a regression test guarding a real bug that turned up during manual
-testing: a power pull run right after free-play use used to carry over
-residual turbo boost instead of starting cold from idle.
+`tests/test_b58_validation.py` / `tests/test_ls2_validation.py`, which also
+explain *why* each is sized the way it is (this is a simplified physical
+model, not a CFD replica). There's also a regression test guarding a real bug
+that turned up during manual testing: a power pull run right after free-play
+use used to carry over residual turbo boost instead of starting cold from
+idle.
 
 **Selecting an engine:** `ENGINE_CHOICES` in `engine_sim/presets/__init__.py`
 is the registry both `DynoSession.select_engine(key)` and every UI read from
--- currently `"ea888_gen3_is20"` (the default) and `"b58_340i"`. In the CLI:
-`engine b58_340i` (or `engines` to list choices). In Godot: the **Engine**
-dropdown at the top of the UI. `EA888_GEN3B_IS38` / `TURBO_IS38` also exist
-in `presets/` for variety but are deliberately left out of `ENGINE_CHOICES`
--- they're explicitly *not* validated against a published dyno sheet (see
-that file's docstring), so they're not offered as an equally-trustworthy
-selectable option. Editing `TURBO_IS38`'s `max_boost_bar` (easy to do by
+-- currently `"ea888_gen3_is20"` (the default), `"b58_340i"`, and `"ls2_na"`.
+In the CLI: `engine ls2_na` (or `engines` to list choices). In Godot: the
+**Engine** dropdown at the top of the UI. `EA888_GEN3B_IS38` / `TURBO_IS38`
+also exist in `presets/` for variety but are deliberately left out of
+`ENGINE_CHOICES` -- they're explicitly *not* validated against a published
+dyno sheet (see that file's docstring), so they're not offered as an
+equally-trustworthy selectable option. Editing `TURBO_IS38`'s `max_boost_bar` (easy to do by
 mistake, presets live in neighboring files) has no effect on anything you can
 see for the same reason -- if you want to change a turbo's max boost, make
 sure you're editing the `TurboSpec` actually referenced by `ENGINE_CHOICES`.

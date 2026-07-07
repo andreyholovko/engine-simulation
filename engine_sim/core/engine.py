@@ -70,6 +70,17 @@ class ParametricEngine(Engine):
 
     def volumetric_efficiency(self, rpm: float) -> float:
         spec = self.spec
+        floor = spec.ve_peak * spec.ve_floor_fraction
+
+        # Rising phase, only for engines that opted in (ve_rise_rpm >
+        # idle_rpm -- the default 0 never satisfies this, so every existing
+        # preset falls straight through to the original flat-plateau
+        # behavior, unchanged).
+        if spec.ve_rise_rpm > spec.idle_rpm and rpm <= spec.ve_rise_rpm:
+            span = max(spec.ve_rise_rpm - spec.idle_rpm, 1.0)
+            x = max(0.0, (rpm - spec.idle_rpm) / span)
+            return floor + (spec.ve_peak - floor) * x
+
         falloff_rpm = spec.ve_falloff_rpm()
         if rpm <= falloff_rpm:
             return spec.ve_peak
@@ -77,7 +88,6 @@ class ParametricEngine(Engine):
         # bite; floor set by ve_floor_fraction so it never goes to zero.
         span = max(spec.redline_rpm - falloff_rpm, 1.0)
         x = (rpm - falloff_rpm) / span
-        floor = spec.ve_peak * spec.ve_floor_fraction
         return floor + (spec.ve_peak - floor) * exp(-2.2 * x * x)
 
     def effective_compression_ratio(self, load_fraction: float) -> float:

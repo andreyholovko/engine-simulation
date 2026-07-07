@@ -52,6 +52,15 @@ class EngineSpec:
     # the rev range).
     ve_peak: float = 0.92
     ve_floor_fraction: float = 0.55
+    # Optional rising phase from idle_rpm up to ve_rise_rpm, before the flat
+    # plateau. Turbocharged engines get their low-end torque rise from boost
+    # building (MAP), not from VE, so this defaults to 0 (meaning "no rise
+    # phase" -- VE is ve_peak from idle already, the original behavior,
+    # unchanged for every existing preset). A naturally-aspirated engine has
+    # no boost to do that job, so its VE curve itself has to rise from idle
+    # to wherever it breathes best (e.g. the LS2 peaks torque at 4400rpm on
+    # VE alone) -- set this for that case.
+    ve_rise_rpm: float = 0.0
 
     # Miller/Otto-cycle engines (e.g. EA888 Gen3B "evo") vary *effective*
     # compression in real time via intake valve closing timing: early closure

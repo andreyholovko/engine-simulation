@@ -1,7 +1,7 @@
 import pytest
 
 from engine_sim import ECU, Engine, ParametricEngine, Turbo
-from engine_sim.presets import B58_340I, EA888_GEN3B_IS38, EA888_GEN3_IS20, TURBO_IS20
+from engine_sim.presets import B58_340I, EA888_GEN3B_IS38, EA888_GEN3_IS20, LS2_NA, TURBO_IS20
 from engine_sim.specs import EngineSpec
 
 
@@ -94,3 +94,25 @@ def test_firing_order_resolved_falls_back_to_plain_sequence():
     spec = EngineSpec(name="unspecified", displacement_l=2.0, cylinders=4, compression_ratio=10.0)
     assert spec.firing_order == ()
     assert spec.firing_order_resolved == (1, 2, 3, 4)
+
+
+def test_ve_rise_phase_is_opt_in_only():
+    """Every turbocharged preset relies on boost, not VE, for its low-end
+    torque rise -- ve_rise_rpm must default to a no-op so their VE is
+    ve_peak from idle, exactly as before this field existed."""
+    engine = ParametricEngine(EA888_GEN3_IS20)
+    assert EA888_GEN3_IS20.ve_rise_rpm == 0.0
+    assert engine.volumetric_efficiency(EA888_GEN3_IS20.idle_rpm) == pytest.approx(EA888_GEN3_IS20.ve_peak)
+    assert engine.volumetric_efficiency(EA888_GEN3_IS20.idle_rpm + 50.0) == pytest.approx(EA888_GEN3_IS20.ve_peak)
+
+
+def test_ve_rise_phase_ramps_for_opted_in_engines():
+    """LS2 (naturally aspirated, no boost to lean on) opts in: VE should
+    genuinely climb from a reduced value at idle up to ve_peak by
+    ve_rise_rpm, not jump straight there."""
+    engine = ParametricEngine(LS2_NA)
+    assert LS2_NA.ve_rise_rpm > LS2_NA.idle_rpm
+    at_idle = engine.volumetric_efficiency(LS2_NA.idle_rpm)
+    at_half = engine.volumetric_efficiency((LS2_NA.idle_rpm + LS2_NA.ve_rise_rpm) / 2.0)
+    at_rise_rpm = engine.volumetric_efficiency(LS2_NA.ve_rise_rpm)
+    assert at_idle < at_half < at_rise_rpm == pytest.approx(LS2_NA.ve_peak)

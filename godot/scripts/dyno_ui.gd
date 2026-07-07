@@ -38,6 +38,7 @@ extends Control
 const ENGINE_LABELS := [
 	"VW/Audi EA888 Gen3 (MK7 GTI, IS20)",
 	"BMW B58B30 (340i)",
+	"GM LS2 (Corvette C6, NA)",
 ]
 
 
