@@ -56,6 +56,11 @@ class dyno_controller(Node):
 	volumetric_efficiency: float = 0.0
 	rev_limiter_active: bool = False
 	power_pull_active: bool = False
+	throttle_percent: float = 0.0  # what the sim actually used this tick (output, not an input)
+	spool_fraction: float = 0.0  # turbo boost as a fraction of max, 0-1 -- for turbo whine/BOV audio
+
+	# --- static engine facts, set once in _ready() -- for audio synthesis ---
+	cylinders: int = 4
 
 	power_pull_finished = signal([])
 
@@ -66,6 +71,7 @@ class dyno_controller(Node):
 	def _ready(self) -> None:
 		self._session = DynoSession()
 		self.rpm = self._session.loop.rpm
+		self.cylinders = self._session.ecu.engine.spec.cylinders
 
 	def _physics_process(self, delta: float) -> None:
 		if self._session is None:
@@ -91,6 +97,8 @@ class dyno_controller(Node):
 		self.effective_compression_ratio = snapshot.effective_compression_ratio
 		self.volumetric_efficiency = snapshot.volumetric_efficiency
 		self.rev_limiter_active = snapshot.rev_limiter_active
+		self.throttle_percent = snapshot.throttle_percent
+		self.spool_fraction = snapshot.spool_fraction
 
 	def start_power_pull(self) -> None:
 		if self._session is None:

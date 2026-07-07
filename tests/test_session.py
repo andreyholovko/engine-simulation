@@ -56,6 +56,33 @@ def test_boost_target_through_session():
     assert peak_half.torque_nm < peak_full.torque_nm
 
 
+def test_session_starts_at_idle_and_holds_it():
+    """Regression test for a real bug: zero-throttle used to have nothing
+    but ~3Nm of dyno drag opposing the engine's own torque, so it free-revved
+    straight to the rev limiter instead of idling. A session should start at
+    the engine's idle RPM and stay near it, not run away."""
+    session = DynoSession()
+    assert session.loop.rpm == pytest.approx(session.idle_rpm_target)
+
+    last_rpm = session.loop.rpm
+    for _ in range(3000):
+        snapshot = session.tick(dt=0.01, throttle_percent=0.0)
+        last_rpm = snapshot.rpm
+    # Steady-state PI error, not an exact hold -- generous band, but nowhere
+    # near a stall (0) or a runaway to the rev limiter (~6550).
+    assert abs(last_rpm - session.idle_rpm_target) < 50.0
+
+
+def test_idle_recovers_after_a_power_pull():
+    session = DynoSession()
+    session.run_power_pull()
+    assert session.loop.rpm > 6000.0  # sanity: it really did end the pull way up high
+
+    for _ in range(3000):
+        snapshot = session.tick(dt=0.01, throttle_percent=0.0)
+    assert abs(snapshot.rpm - session.idle_rpm_target) < 50.0
+
+
 def test_power_pull_transitions_active_flag():
     session = DynoSession()
     assert not session.is_power_pull_active

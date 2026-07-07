@@ -29,6 +29,26 @@ def test_ecu_rev_limiter_cuts_fuel():
     assert reading.target_afr == 0.0
 
 
+def test_zero_throttle_uses_bounded_idle_air_not_full_atmospheric_map():
+    """Zero throttle input must use the small, fixed idle-air-control
+    opening (modest torque, held steady by the dyno brake in SimulationLoop)
+    -- not full atmospheric MAP at stoich (the old bug: ~118Nm, enough to
+    free-rev straight to the rev limiter against only ~3Nm of dyno drag) and
+    not a hard fuel cut either (that stalls instead of idling)."""
+    ecu = _build_ecu()
+    reading = ecu.tick(dt=0.01, rpm=EA888_GEN3_IS20.idle_rpm, throttle=0.0)
+    assert reading.target_afr > 0.0  # not cut
+    assert reading.map_pa < 40_000.0  # closed-throttle-ish vacuum, not atmospheric (~101325 Pa)
+    assert 0.0 < reading.engine.net_torque_nm < 60.0  # modest, nowhere near the old ~118Nm bug
+
+
+def test_closed_throttle_map_is_vacuum_not_atmospheric():
+    ecu = _build_ecu()
+    map_pa = ecu.intake_manifold_pressure(throttle=0.0, boost_pa=0.0)
+    assert map_pa < 40_000.0  # closed-throttle vacuum, nowhere near the ~101325 Pa atmospheric
+    assert ecu.intake_manifold_pressure(throttle=1.0, boost_pa=0.0) == pytest.approx(101_325.0)
+
+
 def test_turbo_spools_toward_target_with_lag():
     turbo = Turbo(TURBO_IS20)
     reading_1 = turbo.tick(dt=0.01, rpm=4000.0, throttle=1.0, wastegate_duty=1.0)

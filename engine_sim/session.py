@@ -59,6 +59,7 @@ class DynoSession:
         self.loop = SimulationLoop(ecu, brake if brake is not None else DynoBrake())
         self._power_pull_active = False
         self._ramp_rate_rpm_s = 400.0
+        self.idle_rpm_target = engine_spec.idle_rpm
 
     @property
     def ecu(self) -> ECU:
@@ -94,9 +95,11 @@ class DynoSession:
     def tick(self, dt: float, throttle_percent: float = 0.0) -> DynoSnapshot:
         """Advance one tick. While a power pull is active, WOT + the ramp
         mode governs regardless of throttle_percent -- a real dyno operator
-        doesn't get to back off mid-pull. Otherwise, free-play at the given
-        throttle (light parasitic load only, RPM responds like a free-revving
-        engine on a stand)."""
+        doesn't get to back off mid-pull. At zero throttle, the dyno brake
+        holds `idle_rpm_target` (the way idle is also held against real
+        accessory load, not just the ECU's own idle air) instead of free-
+        revving or stalling. Above zero throttle, free-play (light parasitic
+        load only, RPM responds like a free-revving engine on a stand)."""
         if self._power_pull_active:
             reading = self.loop.tick(
                 dt, throttle=1.0, mode="ramp_rpm", ramp_rate_rpm_s=self._ramp_rate_rpm_s
@@ -105,7 +108,10 @@ class DynoSession:
                 self._power_pull_active = False
             return self._snapshot(reading, throttle_percent=100.0, power_pull_active=self._power_pull_active)
 
-        reading = self.loop.tick(dt, throttle=throttle_percent / 100.0, mode="free_accel")
+        if throttle_percent <= 1e-6:
+            reading = self.loop.tick(dt, throttle=0.0, mode="hold_rpm", target_rpm=self.idle_rpm_target)
+        else:
+            reading = self.loop.tick(dt, throttle=throttle_percent / 100.0, mode="free_accel")
         return self._snapshot(reading, throttle_percent=throttle_percent, power_pull_active=False)
 
     def run_power_pull(self, ramp_rate_rpm_s: float = 400.0, dt: float = 0.01) -> list[DynoSnapshot]:

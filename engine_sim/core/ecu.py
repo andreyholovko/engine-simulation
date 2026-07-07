@@ -19,7 +19,7 @@ from typing import Optional
 
 from engine_sim.core.engine import Engine, EngineReading
 from engine_sim.core.turbo import Turbo, TurboReading
-from engine_sim.units import P_ATM
+from engine_sim.units import P_ATM, IDLE_MAP_PA
 
 
 @dataclass
@@ -44,6 +44,17 @@ class ECU:
         self._afr_override: Optional[float] = None
         self._boost_target_override: Optional[float] = None  # fraction 0..1 of max boost
         self._rev_limiter_headroom_rpm = 150.0
+
+        # Idle air control: real ECUs hold idle via a small, fixed bypass air
+        # opening (or electronic throttle held at a calculated idle crack),
+        # not by cutting fuel -- DFCO (fuel cut) only kicks in on decel
+        # *above* idle. This isn't enough on its own to land exactly on a
+        # target RPM (that's SimulationLoop's job, holding it with the dyno
+        # brake the way a real idle is also held against accessory load) --
+        # it just needs to produce *some* modest, non-runaway torque instead
+        # of either "full atmospheric MAP at stoich" (the old bug) or a hard
+        # cut (stalls instead of idling).
+        self.idle_throttle_equivalent = 0.06
 
     def set_target_afr(self, afr: Optional[float]) -> None:
         """Operator override for target AFR (None restores the default
@@ -78,8 +89,15 @@ class ECU:
         return rpm >= self.rev_limiter_threshold_rpm
 
     def intake_manifold_pressure(self, throttle: float, boost_pa: float) -> float:
+        """Naturally-aspirated MAP blends from a closed-throttle vacuum floor
+        up to atmospheric as the throttle plate opens (this is what actually
+        restricts airflow at low throttle -- boost_pa on its own never did;
+        it only ever added on top). Boost then adds on top, scaled by
+        throttle same as before -- unchanged at WOT (throttle=1), where this
+        reduces exactly to the old P_ATM + boost_pa."""
         throttle = max(0.0, min(1.0, throttle))
-        return P_ATM + throttle * boost_pa
+        na_map_pa = IDLE_MAP_PA + (P_ATM - IDLE_MAP_PA) * throttle
+        return na_map_pa + throttle * boost_pa
 
     def load_fraction(self, map_pa: float, boost_pa: float) -> float:
         max_map = P_ATM + boost_pa if boost_pa > 0 else P_ATM
@@ -87,15 +105,18 @@ class ECU:
 
     def tick(self, dt: float, rpm: float, throttle: float, intake_temp_k: float = 313.0) -> EcuReading:
         throttle = max(0.0, min(1.0, throttle))
+        effective_throttle = throttle if throttle > 1e-6 else self.idle_throttle_equivalent
 
-        wastegate_duty = self.wastegate_duty(rpm, throttle)
-        turbo_reading = self.turbo.tick(dt, rpm, throttle, wastegate_duty)
-        map_pa = self.intake_manifold_pressure(throttle, turbo_reading.boost_pa)
+        wastegate_duty = self.wastegate_duty(rpm, effective_throttle)
+        turbo_reading = self.turbo.tick(dt, rpm, effective_throttle, wastegate_duty)
+        map_pa = self.intake_manifold_pressure(effective_throttle, turbo_reading.boost_pa)
         load_fraction = self.load_fraction(map_pa, turbo_reading.boost_pa)
 
         limiter = self.rev_limiter_active(rpm)
-        # Ignition/fuel cut: starve it back below the limiter threshold.
-        target_afr = 0.0 if limiter else self.target_afr(throttle)
+        # Ignition/fuel cut: starve it back below the limiter threshold. Idle
+        # air is never cut -- that's what actually holds idle instead of
+        # stalling.
+        target_afr = 0.0 if limiter else self.target_afr(effective_throttle)
 
         engine_reading = self.engine.compute(
             rpm=rpm,

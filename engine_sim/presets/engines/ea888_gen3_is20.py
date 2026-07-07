@@ -15,7 +15,7 @@ EA888_GEN3_IS20 = EngineSpec(
     cam=CamSpec(intake_duration_deg=208.0, intake_lift_mm=9.3, overlap_deg=16.0),
     bore_mm=82.5,
     stroke_mm=92.8,
-    idle_rpm=900.0,
+    idle_rpm=800.0,
     redline_rpm=6700.0,
     ve_peak=0.93,
     ve_floor_fraction=0.55,

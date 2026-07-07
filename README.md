@@ -164,7 +164,72 @@ Set it up once per machine:
   of the ECU's own load-based control law (stoich cruise -> ~12.5 at WOT).
 - **Start Power Pull** -- runs a paced WOT sweep (default 400rpm/s, adjustable)
   from idle to the rev limiter, plotting the torque/power curve live. Between
-  pulls the engine just sits idle/off (throttle is fixed at 0).
+  pulls the engine holds idle (800rpm, see below), not WOT.
+
+### Sound (`scripts/dyno_audio.gd`, on the `DynoAudio` node)
+
+Procedurally synthesized, not sample-based -- engine harmonics of the firing
+frequency (`cylinders * rpm / 120`), a turbo whine that rises in pitch and
+volume with `spool_fraction`, an off-throttle flutter (filtered noise gated
+by a ~15Hz chattery oscillator, not a smooth hiss -- that stutter is what
+actually reads as "flutter"), and exhaust pops. Flutter and pops share the
+same trigger: `throttle_percent` dropping from >50% to <=50% while
+`boost_bar > 0.2` -- an actual throttle lift with boost still in the
+manifold, same as a real car venting a BOV, surging the compressor, and
+popping on overrun all at once. Pops are a scheduled burst of 1-3 (not a
+single bang -- real overrun crackle stutters), each a loud low-frequency
+"thump" body (~110ms decay, randomized 70-120Hz) plus a very brief broadband
+"crack" at the onset (~22ms decay); mixed in hot, deliberately not scaled
+down like the other layers, since a real pop is the loudest thing in the
+note. The engine layer is also gated by actual RPM (not just throttle/load)
+so it's genuinely silent if the engine ever really stops turning, rather than
+leaking a constant idle-floor hiss regardless of RPM (a real bug this had:
+audible noise while RPM visibly decayed to 0 on startup, before the
+idle-hold fix below existed).
+
+The engine's noise component is driven by `air_mass_flow_g_s` (idle ~5g/s,
+WOT up towards 170g/s+), not a flat noise floor scaled by throttle -- this
+*was* the "constant white noise" bug: a fixed-amplitude hiss present whenever
+throttle/load was nonzero, regardless of how much air was actually moving.
+Now it's quiet and dull at idle and rises in both loudness and brightness
+(a one-pole lowpass opens up as flow increases) with real induction roar,
+which is also what real intake noise is physically driven by.
+**Not run in a real Godot audio thread** (no Godot in the environment that
+authored it) -- the DSP math and control-flow are sound but the actual audio
+thread timing (buffer refill speed, clipping/crackling) needs a real ear on
+real hardware.
+
+### Idle: holds 800rpm, doesn't stall or run away (fixed, worth knowing why)
+
+Two related bugs showed up back to back and are both fixed in
+`engine_sim/core/ecu.py` and `engine_sim/session.py`:
+
+1. **RPM settling around 6500 at "idle" instead of near zero.** Root cause:
+   `ECU.intake_manifold_pressure()` only ever *added* boost scaled by
+   throttle -- it never modeled the throttle plate restricting airflow at
+   closed throttle, so 0% threshold still breathed at full atmospheric
+   pressure and produced real torque (verified: ~118Nm) against only ~3Nm of
+   dyno parasitic drag. Nothing stopped it climbing to the rev limiter.
+   `intake_manifold_pressure()` now blends from a closed-throttle vacuum
+   floor (`IDLE_MAP_PA`, ~30kPa) up to atmospheric as throttle opens --
+   unchanged at WOT (throttle=1), so the validated power-pull curve is
+   bit-for-bit identical.
+2. That alone wasn't enough on its own (a fixed idle-air opening still needs
+   *something* to hold it at a target RPM -- too much authority and it
+   climbs, too little and it stalls, and there's no way to land exactly on
+   zero net torque by tuning constants alone). The real fix: the ECU always
+   applies a small, fixed idle-air-control opening at zero throttle
+   (`idle_throttle_equivalent`, modest torque, never cut) and
+   `DynoSession.tick()` uses the dyno brake's existing `hold_rpm` PID
+   (`SimulationLoop`/`DynoBrake`, already built for exactly this) to hold
+   RPM at `idle_rpm_target` (800rpm, `EA888_GEN3_IS20.idle_rpm`) against it --
+   the same way a real idle is also held against accessory/AC-compressor
+   load, not by tuning the engine to balance itself unaided. Recovers
+   smoothly back to ~800rpm after a power pull too, not just on startup.
+
+Covered by `tests/test_components.py::test_zero_throttle_uses_bounded_idle_air_not_full_atmospheric_map`
+and `tests/test_session.py::test_session_starts_at_idle_and_holds_it` /
+`::test_idle_recovers_after_a_power_pull`.
 
 ## Not built yet
 
