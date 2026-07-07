@@ -101,12 +101,16 @@ func _engine_sample(dt: float) -> float:
 	var pulse: float = shape * shape * shape * amp
 
 	# Bigger engine -> deeper: lower the lowpass cutoff as displacement rises.
-	# Normalized around the EA888's 2.0L (cutoff ~2200Hz, brightest) down to
-	# the B58's 3.0L (~650Hz, noticeably darker/deeper) despite similar
-	# per-cylinder size -- total displacement is what's modeled, matching
-	# "bigger engine sounds deeper" rather than "more cylinders sound deeper."
+	# Normalized around the EA888's 2.0L (cutoff ~1382Hz, brightest) down to
+	# the B58's 3.0L (~829Hz) and the LS2's 6.0L (~500Hz floor) -- total
+	# displacement is what's modeled, matching "bigger engine sounds deeper"
+	# rather than "more cylinders sound deeper." Range lowered ~25% across
+	# the board (was 2200-650Hz) for an overall deeper tone on every engine --
+	# note this is the harmonic-brightness knob, not the firing rate itself
+	# (fire_hz stays tied to real rpm; changing that would decouple the sound
+	# from the actual physics rather than just darken its tone).
 	var displacement_l: float = controller.displacement_l
-	var cutoff_hz: float = lerp(2200.0, 650.0, clamp((displacement_l - 1.4) / 2.2, 0.0, 1.0))
+	var cutoff_hz: float = lerp(1700.0, 500.0, clamp((displacement_l - 1.4) / 2.2, 0.0, 1.0))
 	var lp_coeff: float = 1.0 - exp(-TAU * cutoff_hz * dt)
 	_engine_lp += (pulse - _engine_lp) * lp_coeff
 
