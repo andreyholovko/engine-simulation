@@ -75,23 +75,38 @@ directly.
 .venv/bin/python -m pytest -q
 ```
 
-19 tests pass, including validation against VW's own published EA888 Gen3
-figures (147kW/200PS, 320Nm torque plateau 1500-4400rpm, IS20 full boost by
-~3200rpm). The simulated curve lands at 323.8Nm peak torque @ 2636rpm and
-156.1kW peak power @ 4928rpm -- within the tolerances documented in
-`tests/test_ea888_validation.py`, which also explains *why* each tolerance is
-sized the way it is (this is a simplified physical model, not a CFD replica).
-There's also a regression test guarding a real bug that turned up during
-manual testing: a power pull run right after free-play use used to carry over
+31 tests pass, including validation against two independently-published
+figures:
+
+- **EA888 Gen3 (MK7 GTI, IS20)** -- VW/Audi's own published 147kW/200PS,
+  320Nm torque plateau 1500-4400rpm, IS20 full boost by ~3200rpm. Simulated:
+  323.8Nm peak torque @ 2636rpm, 156.1kW peak power @ 4928rpm.
+- **BMW B58B30 (340i)** -- BMW's published 320hp (238.7kW) @ 5500-6500rpm,
+  330lb-ft (447Nm) flat 1380-5000rpm, redline 7000rpm. Simulated: 446.1Nm
+  peak torque @ 2052rpm, 235.8kW peak power @ 5352rpm. (Despite being
+  colloquially called "twin-turbo," the B58 uses one turbocharger with a
+  twin-scroll housing, not two turbos -- modeled as a single `TurboSpec`,
+  same as every other preset here.)
+
+Tolerances are documented in `tests/test_ea888_validation.py` /
+`tests/test_b58_validation.py`, which also explain *why* each is sized the
+way it is (this is a simplified physical model, not a CFD replica). There's
+also a regression test guarding a real bug that turned up during manual
+testing: a power pull run right after free-play use used to carry over
 residual turbo boost instead of starting cold from idle.
 
-**Which presets are actually live:** `DynoSession()`'s defaults are
-`EA888_GEN3_IS20` / `TURBO_IS20` (`engine_sim/presets/`), which is what both
-`dyno_controller.py` and `dyno_cli.py` get. `EA888_GEN3B_IS38` / `TURBO_IS38`
-exist for variety but nothing constructs them -- editing `TURBO_IS38`'s
-`max_boost_bar` (easy to do by mistake, presets live in neighboring files) has
-no effect on anything you can see. If you want to change the turbo's max
-boost, edit `TURBO_IS20.max_boost_bar`.
+**Selecting an engine:** `ENGINE_CHOICES` in `engine_sim/presets/__init__.py`
+is the registry both `DynoSession.select_engine(key)` and every UI read from
+-- currently `"ea888_gen3_is20"` (the default) and `"b58_340i"`. In the CLI:
+`engine b58_340i` (or `engines` to list choices). In Godot: the **Engine**
+dropdown at the top of the UI. `EA888_GEN3B_IS38` / `TURBO_IS38` also exist
+in `presets/` for variety but are deliberately left out of `ENGINE_CHOICES`
+-- they're explicitly *not* validated against a published dyno sheet (see
+that file's docstring), so they're not offered as an equally-trustworthy
+selectable option. Editing `TURBO_IS38`'s `max_boost_bar` (easy to do by
+mistake, presets live in neighboring files) has no effect on anything you can
+see for the same reason -- if you want to change a turbo's max boost, make
+sure you're editing the `TurboSpec` actually referenced by `ENGINE_CHOICES`.
 
 ## Fastest way to actually drive it: `dyno_cli.py`
 
@@ -103,6 +118,8 @@ No Godot required. An interactive terminal dyno against the exact same
 ```
 
 ```
+dyno> engines            # list selectable engines
+dyno> engine b58_340i    # switch engine+turbo mid-session
 dyno> throttle 100
 dyno> step 3            # advance 3s at current throttle, free-play mode
 dyno> afr 11.5           # override target AFR (or "afr auto" to release it)
@@ -156,6 +173,19 @@ Set it up once per machine:
 
 ### What each control does
 
+- **Engine dropdown** -- selects from `ENGINE_CHOICES`, rebuilding the
+  session's Engine/Turbo/ECU for the chosen preset (`DynoSession.
+  select_engine()`). Aborts any in-progress pull. The graph (below) rescales
+  its axes automatically for whichever engine is selected.
+  **Real bug found and fixed here:** the dropdown initially didn't work at
+  all -- `engine_choices`/`engine_name` are `str`-typed py4godot properties,
+  and py4godot's own examples only ever show `int`/`float`/`bool`/`Vector3`,
+  never `str`. Selection now goes through `select_engine_by_index(int)` end
+  to end (`dyno_ui.gd` hardcodes the picker's labels, matching
+  `ENGINE_CHOICES`' order, instead of parsing `engine_choices`) -- `int` is a
+  type already confirmed working (`rpm`, `engine_count`, etc. all display
+  correctly). The `str` properties are left in place as a nice-to-have/debug
+  aid, but nothing load-bearing depends on them anymore.
 - **Target Boost slider (0-100%)** -- caps the ECU's wastegate authority as a
   fraction of the turbo's `max_boost_bar` (`TURBO_IS20`, currently 1.3 bar).
   50% target measurably drops peak torque from ~324Nm to ~230Nm -- verified
@@ -166,38 +196,14 @@ Set it up once per machine:
   from idle to the rev limiter, plotting the torque/power curve live. Between
   pulls the engine holds idle (800rpm, see below), not WOT.
 
-### Sound (`scripts/dyno_audio.gd`, on the `DynoAudio` node)
+### Sound
 
-Procedurally synthesized, not sample-based -- engine harmonics of the firing
-frequency (`cylinders * rpm / 120`), a turbo whine that rises in pitch and
-volume with `spool_fraction`, an off-throttle flutter (filtered noise gated
-by a ~15Hz chattery oscillator, not a smooth hiss -- that stutter is what
-actually reads as "flutter"), and exhaust pops. Flutter and pops share the
-same trigger: `throttle_percent` dropping from >50% to <=50% while
-`boost_bar > 0.2` -- an actual throttle lift with boost still in the
-manifold, same as a real car venting a BOV, surging the compressor, and
-popping on overrun all at once. Pops are a scheduled burst of 1-3 (not a
-single bang -- real overrun crackle stutters), each a loud low-frequency
-"thump" body (~110ms decay, randomized 70-120Hz) plus a very brief broadband
-"crack" at the onset (~22ms decay); mixed in hot, deliberately not scaled
-down like the other layers, since a real pop is the loudest thing in the
-note. The engine layer is also gated by actual RPM (not just throttle/load)
-so it's genuinely silent if the engine ever really stops turning, rather than
-leaking a constant idle-floor hiss regardless of RPM (a real bug this had:
-audible noise while RPM visibly decayed to 0 on startup, before the
-idle-hold fix below existed).
-
-The engine's noise component is driven by `air_mass_flow_g_s` (idle ~5g/s,
-WOT up towards 170g/s+), not a flat noise floor scaled by throttle -- this
-*was* the "constant white noise" bug: a fixed-amplitude hiss present whenever
-throttle/load was nonzero, regardless of how much air was actually moving.
-Now it's quiet and dull at idle and rises in both loudness and brightness
-(a one-pole lowpass opens up as flow increases) with real induction roar,
-which is also what real intake noise is physically driven by.
-**Not run in a real Godot audio thread** (no Godot in the environment that
-authored it) -- the DSP math and control-flow are sound but the actual audio
-thread timing (buffer refill speed, clipping/crackling) needs a real ear on
-real hardware.
+Not in this repo yet -- an earlier pass (`dyno_audio.gd`, procedural engine/
+turbo/flutter/pop synthesis) was pulled back out to keep it as its own,
+separate change rather than tangled into engine selection/idle-fix work.
+`EngineSpec.firing_order` (see below) was kept, since it's a genuine engine
+fact independent of audio -- sound synthesis is a future consumer of it, not
+the other way around.
 
 ### Idle: holds 800rpm, doesn't stall or run away (fixed, worth knowing why)
 

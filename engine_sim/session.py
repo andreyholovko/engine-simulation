@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from engine_sim.core import DynoBrake, DynoReading, ECU, ParametricEngine, SimulationLoop, Turbo
-from engine_sim.presets import EA888_GEN3_IS20, TURBO_IS20
+from engine_sim.presets import EA888_GEN3_IS20, ENGINE_CHOICES, TURBO_IS20
 from engine_sim.specs import EngineSpec, TurboSpec
 
 
@@ -52,6 +52,7 @@ class DynoSession:
         engine_spec: EngineSpec = EA888_GEN3_IS20,
         turbo_spec: TurboSpec = TURBO_IS20,
         brake: Optional[DynoBrake] = None,
+        engine_key: str = "ea888_gen3_is20",
     ):
         engine = ParametricEngine(engine_spec)
         turbo = Turbo(turbo_spec)
@@ -60,6 +61,7 @@ class DynoSession:
         self._power_pull_active = False
         self._ramp_rate_rpm_s = 400.0
         self.idle_rpm_target = engine_spec.idle_rpm
+        self.engine_key = engine_key
 
     @property
     def ecu(self) -> ECU:
@@ -68,6 +70,40 @@ class DynoSession:
     @property
     def is_power_pull_active(self) -> bool:
         return self._power_pull_active
+
+    @staticmethod
+    def list_engine_choices() -> list[tuple[str, str]]:
+        """[(key, display_name), ...] for every engine select_engine() accepts."""
+        return [(key, name) for key, (_, _, name) in ENGINE_CHOICES.items()]
+
+    def select_engine(self, key: str) -> None:
+        """Swap to a different engine+turbo from ENGINE_CHOICES, mid-session.
+        Rebuilds Engine/Turbo/ECU (a different engine means different specs
+        driving them) but keeps the same DynoBrake -- the dyno's own inertia/
+        drag isn't a property of whichever engine happens to be mounted."""
+        if key not in ENGINE_CHOICES:
+            raise ValueError(f"unknown engine choice: {key!r}. Available: {sorted(ENGINE_CHOICES)}")
+        engine_spec, turbo_spec, _ = ENGINE_CHOICES[key]
+        engine = ParametricEngine(engine_spec)
+        turbo = Turbo(turbo_spec)
+        ecu = ECU(engine, turbo)
+        self.loop = SimulationLoop(ecu, self.loop.brake)
+        self.loop.brake.reset_pid()
+        self._power_pull_active = False
+        self.idle_rpm_target = engine_spec.idle_rpm
+        self.engine_key = key
+
+    def select_engine_by_index(self, index: int) -> None:
+        """Same as select_engine(), addressed by position in ENGINE_CHOICES
+        (dict insertion order) instead of by string key. Exists for
+        boundaries where passing/returning `str` is a real risk -- py4godot's
+        own examples only ever show int/float/bool/Vector3 properties, never
+        str, so the Godot-facing side of engine selection goes through this
+        instead of the key-based method."""
+        keys = list(ENGINE_CHOICES.keys())
+        if not 0 <= index < len(keys):
+            raise ValueError(f"engine index {index} out of range (0..{len(keys) - 1})")
+        self.select_engine(keys[index])
 
     # --- control surface: the only knobs any consumer should touch ---
 

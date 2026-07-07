@@ -29,6 +29,18 @@ offset_right = -16.0
 offset_bottom = -16.0
 theme_override_constants/separation = 10
 
+[node name="EngineRow" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="EngineLabel" type="Label" parent="Layout/EngineRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Engine"
+
+[node name="EngineOption" type="OptionButton" parent="Layout/EngineRow"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
 [node name="BoostRow" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 
@@ -174,6 +186,7 @@ layout_mode = 2
 size_flags_vertical = 3
 script = ExtResource("3")
 
+[connection signal="item_selected" from="Layout/EngineRow/EngineOption" to="." method="_on_engine_selected"]
 [connection signal="value_changed" from="Layout/BoostRow/BoostSlider" to="." method="_on_boost_target_changed"]
 [connection signal="toggled" from="Layout/AfrRow/AfrCheckBox" to="." method="_on_afr_override_toggled"]
 [connection signal="value_changed" from="Layout/AfrRow/AfrSlider" to="." method="_on_afr_slider_changed"]

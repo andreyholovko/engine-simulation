@@ -56,11 +56,26 @@ class dyno_controller(Node):
 	volumetric_efficiency: float = 0.0
 	rev_limiter_active: bool = False
 	power_pull_active: bool = False
-	throttle_percent: float = 0.0  # what the sim actually used this tick (output, not an input)
-	spool_fraction: float = 0.0  # turbo boost as a fraction of max, 0-1 -- for turbo whine/BOV audio
 
-	# --- static engine facts, set once in _ready() -- for audio synthesis ---
+	# --- engine picker: ENGINE_CHOICES, addressed by index (int) rather than
+	# key (str) -- py4godot's own examples only ever show int/float/bool/
+	# Vector3 properties, never str, so selection goes through
+	# select_engine_by_index() to stay on confirmed-safe types.
+	engine_count: int = 0
+	engine_name: str = ""  # last-resort/debug only, nothing load-bearing depends on this str
+	engine_choices: str = ""  # ditto
+
+	# --- engine/turbo facts, refreshed whenever the engine changes -- for
+	# audio synthesis (dyno_audio.gd). Kept as plain int/float, same reasoning
+	# as engine_count above.
 	cylinders: int = 4
+	displacement_l: float = 2.0
+	max_boost_bar: float = 1.3
+	firing_order_length: int = 4
+	# Bumped every time the engine changes -- the cheap int-only way for
+	# dyno_audio.gd to know its cached per-cylinder signature is stale,
+	# without needing a str/object identity check across the boundary.
+	engine_generation: int = 0
 
 	power_pull_finished = signal([])
 
@@ -71,7 +86,43 @@ class dyno_controller(Node):
 	def _ready(self) -> None:
 		self._session = DynoSession()
 		self.rpm = self._session.loop.rpm
-		self.cylinders = self._session.ecu.engine.spec.cylinders
+		self.engine_count = len(DynoSession.list_engine_choices())
+		self.engine_choices = "|".join(
+			f"{key}:{name}" for key, name in DynoSession.list_engine_choices()
+		)
+		self._refresh_engine_facts()
+
+	def _refresh_engine_facts(self) -> None:
+		spec = self._session.ecu.engine.spec
+		self.engine_name = spec.name
+		self.cylinders = spec.cylinders
+		self.displacement_l = spec.displacement_l
+		self.max_boost_bar = self._session.ecu.turbo.spec.max_boost_bar
+		self.firing_order_length = len(spec.firing_order_resolved)
+		self.engine_generation += 1
+
+	def get_firing_order_cylinder(self, index: int) -> int:
+		"""index into the current engine's firing order (0-based), e.g. for
+		EA888 (1,3,4,2): index 0 -> 1, index 1 -> 3, etc. Returns cylinder
+		numbers (int) rather than the tuple itself -- an arbitrary-length
+		Python sequence is exactly the kind of thing not to trust across the
+		py4godot boundary; plain int in, plain int out is safe."""
+		if self._session is None:
+			return index + 1
+		firing_order = self._session.ecu.engine.spec.firing_order_resolved
+		return firing_order[index]
+
+	def select_engine_by_index(self, index: int) -> None:
+		if self._session is None:
+			return
+		self._session.select_engine_by_index(index)
+		self._refresh_engine_facts()
+
+	def select_engine(self, key: str) -> None:
+		if self._session is None:
+			return
+		self._session.select_engine(key)
+		self._refresh_engine_facts()
 
 	def _physics_process(self, delta: float) -> None:
 		if self._session is None:
@@ -97,8 +148,6 @@ class dyno_controller(Node):
 		self.effective_compression_ratio = snapshot.effective_compression_ratio
 		self.volumetric_efficiency = snapshot.volumetric_efficiency
 		self.rev_limiter_active = snapshot.rev_limiter_active
-		self.throttle_percent = snapshot.throttle_percent
-		self.spool_fraction = snapshot.spool_fraction
 
 	def start_power_pull(self) -> None:
 		if self._session is None:

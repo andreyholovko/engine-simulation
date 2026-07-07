@@ -16,6 +16,7 @@ EA888_GEN3B_IS38 = EngineSpec(
     cam=CamSpec(intake_duration_deg=214.0, intake_lift_mm=9.8, overlap_deg=18.0),
     bore_mm=82.5,
     stroke_mm=92.8,
+    firing_order=(1, 3, 4, 2),  # same I4 family as EA888_GEN3_IS20
     idle_rpm=900.0,
     redline_rpm=6800.0,
     ve_peak=0.95,

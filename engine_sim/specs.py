@@ -7,6 +7,7 @@ throttle/RPM/manifold-pressure inputs -- it never hardcodes a canned curve.
 """
 
 from dataclasses import dataclass, field
+from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,17 @@ class EngineSpec:
     cylinders: int
     compression_ratio: float
     cam: CamSpec = field(default_factory=CamSpec)
+
+    # The actual firing order (1-indexed cylinder numbers), e.g. (1, 3, 4, 2)
+    # for most transverse inline-4s or (1, 5, 3, 6, 2, 4) for a BMW inline-6.
+    # Doesn't change pulse *spacing* for an even-firing inline engine (that's
+    # cylinders*rpm/120 regardless of order) -- it's the sequence each
+    # cylinder's fixed exhaust signature repeats in every revolution, which is
+    # what audio synthesis (or anything else caring about per-cylinder
+    # character) should actually consume, rather than guessing from cylinder
+    # count alone. Defaults to a plain 1..N sequence for anything that hasn't
+    # set a real one.
+    firing_order: Tuple[int, ...] = ()
 
     bore_mm: float = 82.5
     stroke_mm: float = 92.8
@@ -63,6 +75,11 @@ class EngineSpec:
     @property
     def displacement_m3(self) -> float:
         return self.displacement_l / 1000.0
+
+    @property
+    def firing_order_resolved(self) -> Tuple[int, ...]:
+        """firing_order if set, else a plain 1..N sequence."""
+        return self.firing_order or tuple(range(1, self.cylinders + 1))
 
     def ve_falloff_rpm(self) -> float:
         # Longer duration cams keep breathing well further up the rev range.

@@ -83,6 +83,49 @@ def test_idle_recovers_after_a_power_pull():
     assert abs(snapshot.rpm - session.idle_rpm_target) < 50.0
 
 
+def test_select_engine_switches_to_a_validated_curve():
+    session = DynoSession()
+    assert session.engine_key == "ea888_gen3_is20"
+
+    session.select_engine("b58_340i")
+    assert session.engine_key == "b58_340i"
+    assert session.loop.rpm == pytest.approx(700.0)  # B58's idle, not the EA888's 800
+
+    peak_t = max(session.run_power_pull(), key=lambda s: s.torque_nm)
+    peak_p = max(session.run_power_pull(), key=lambda s: s.power_kw)
+    # Same tolerances as tests/test_b58_validation.py.
+    assert 380.0 <= peak_t.torque_nm <= 514.0
+    assert 203.0 <= peak_p.power_kw <= 274.0
+
+
+def test_select_engine_rejects_unknown_key():
+    session = DynoSession()
+    with pytest.raises(ValueError):
+        session.select_engine("does_not_exist")
+
+
+def test_list_engine_choices_includes_both_validated_engines():
+    keys = {key for key, _ in DynoSession.list_engine_choices()}
+    assert {"ea888_gen3_is20", "b58_340i"} <= keys
+
+
+def test_select_engine_by_index_matches_select_engine_by_key():
+    """The Godot-facing path (index-based, avoiding str across the py4godot
+    boundary) must land on the exact same engine as the key-based one."""
+    by_index = DynoSession()
+    by_index.select_engine_by_index(1)
+    by_key = DynoSession()
+    by_key.select_engine("b58_340i")
+    assert by_index.engine_key == by_key.engine_key == "b58_340i"
+    assert by_index.ecu.engine.spec.name == by_key.ecu.engine.spec.name
+
+
+def test_select_engine_by_index_rejects_out_of_range():
+    session = DynoSession()
+    with pytest.raises(ValueError):
+        session.select_engine_by_index(99)
+
+
 def test_power_pull_transitions_active_flag():
     session = DynoSession()
     assert not session.is_power_pull_active

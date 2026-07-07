@@ -1,7 +1,8 @@
 import pytest
 
 from engine_sim import ECU, Engine, ParametricEngine, Turbo
-from engine_sim.presets import EA888_GEN3B_IS38, EA888_GEN3_IS20, TURBO_IS20
+from engine_sim.presets import B58_340I, EA888_GEN3B_IS38, EA888_GEN3_IS20, TURBO_IS20
+from engine_sim.specs import EngineSpec
 
 
 def test_engine_is_abstract():
@@ -77,3 +78,19 @@ def test_non_miller_engine_compression_is_static():
     engine = ParametricEngine(EA888_GEN3_IS20)
     assert engine.effective_compression_ratio(0.0) == EA888_GEN3_IS20.compression_ratio
     assert engine.effective_compression_ratio(1.0) == EA888_GEN3_IS20.compression_ratio
+
+
+def test_firing_orders_are_real_and_engine_specific():
+    """Firing order is a genuine per-engine fact (like cylinders/displacement),
+    not something to guess from cylinder count alone -- two engines can share
+    a cylinder count and not share a firing order."""
+    assert EA888_GEN3_IS20.firing_order == (1, 3, 4, 2)
+    assert B58_340I.firing_order == (1, 5, 3, 6, 2, 4)
+    assert sorted(EA888_GEN3_IS20.firing_order) == list(range(1, EA888_GEN3_IS20.cylinders + 1))
+    assert sorted(B58_340I.firing_order) == list(range(1, B58_340I.cylinders + 1))
+
+
+def test_firing_order_resolved_falls_back_to_plain_sequence():
+    spec = EngineSpec(name="unspecified", displacement_l=2.0, cylinders=4, compression_ratio=10.0)
+    assert spec.firing_order == ()
+    assert spec.firing_order_resolved == (1, 2, 3, 4)

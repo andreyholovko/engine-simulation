@@ -5,6 +5,7 @@ extends Control
 ## numbers between widgets and that node.
 
 @onready var controller = $DynoController
+@onready var engine_option: OptionButton = $Layout/EngineRow/EngineOption
 @onready var boost_slider: HSlider = $Layout/BoostRow/BoostSlider
 @onready var boost_target_label: Label = $Layout/BoostRow/BoostTargetLabel
 @onready var afr_checkbox: CheckBox = $Layout/AfrRow/AfrCheckBox
@@ -26,8 +27,30 @@ extends Control
 @onready var graph = $Layout/DynoGraph
 
 
+# Hardcoded, matching engine_sim/presets/__init__.py's ENGINE_CHOICES order
+# exactly -- deliberately NOT read from controller.engine_choices (a `str`
+# property), because py4godot's own examples only ever show int/float/bool/
+# Vector3 properties, never str, and that was confirmed to be the actual
+# cause of the engine picker not working at all: an empty/broken string
+# meant an empty dropdown. Selection is driven by plain index (int), a type
+# already confirmed working (cylinders, rpm, etc. all display correctly).
+# Keep this list in sync with ENGINE_CHOICES if you add a third engine.
+const ENGINE_LABELS := [
+	"VW/Audi EA888 Gen3 (MK7 GTI, IS20)",
+	"BMW B58B30 (340i)",
+]
+
+
 func _ready() -> void:
 	controller.power_pull_finished.connect(_on_power_pull_finished)
+	_populate_engine_options()
+
+
+func _populate_engine_options() -> void:
+	for label in ENGINE_LABELS:
+		engine_option.add_item(label)
+	if engine_option.item_count > 0:
+		engine_option.select(0)
 
 
 func _process(_delta: float) -> void:
@@ -44,6 +67,20 @@ func _process(_delta: float) -> void:
 
 	if controller.power_pull_active:
 		graph.add_point(controller.rpm, controller.torque_nm, controller.power_kw)
+
+
+func _on_engine_selected(index: int) -> void:
+	controller.select_engine_by_index(index)
+	# Switching engines always aborts any in-progress pull (DynoSession.
+	# select_engine() resets it internally) -- but that happens synchronously
+	# here, before the next _physics_process runs, so the usual True->False
+	# transition _physics_process watches for to fire power_pull_finished
+	# never happens (is_power_pull_active is already False by the time it
+	# next checks). Reset the button/graph directly instead of relying on
+	# that signal for this specific case.
+	graph.clear_history()
+	power_pull_button.disabled = false
+	power_pull_button.text = "Start Power Pull (WOT sweep)"
 
 
 func _on_boost_target_changed(value: float) -> void:

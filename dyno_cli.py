@@ -6,6 +6,8 @@ input()):
     .venv/bin/python dyno_cli.py
 
 Commands:
+    engines            list selectable engines (key + display name)
+    engine <key>        switch to a different engine+turbo mid-session
     throttle <0-100>   set throttle percent (free-play mode)
     boost <0-100|auto>  override wastegate target as % of max boost, or
                        "auto" to restore full authority
@@ -67,6 +69,18 @@ def main() -> None:
 
         if cmd in ("quit", "exit"):
             break
+
+        elif cmd == "engines":
+            for key, name in DynoSession.list_engine_choices():
+                marker = "*" if key == session.engine_key else " "
+                print(f" {marker} {key:16s} {name}")
+
+        elif cmd == "engine" and len(parts) == 2:
+            try:
+                session.select_engine(parts[1])
+                print(f"engine: {session.ecu.engine.spec.name}")
+            except ValueError as exc:
+                print(exc)
 
         elif cmd == "throttle" and len(parts) == 2:
             throttle_pct = max(0.0, min(100.0, float(parts[1])))
