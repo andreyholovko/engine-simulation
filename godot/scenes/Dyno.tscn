@@ -1,0 +1,177 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/dyno_ui.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/dyno_controller.py" id="2"]
+[ext_resource type="Script" path="res://scripts/dyno_graph.gd" id="3"]
+
+[node name="Dyno" type="Control"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1")
+
+[node name="DynoController" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = -16.0
+theme_override_constants/separation = 10
+
+[node name="BoostRow" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="BoostTargetLabel" type="Label" parent="Layout/BoostRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Target Boost: 100%"
+
+[node name="BoostSlider" type="HSlider" parent="Layout/BoostRow"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+max_value = 100.0
+step = 1.0
+value = 100.0
+
+[node name="AfrRow" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="AfrCheckBox" type="CheckBox" parent="Layout/AfrRow"]
+layout_mode = 2
+text = "Override target AFR"
+
+[node name="AfrSlider" type="HSlider" parent="Layout/AfrRow"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+min_value = 10.0
+max_value = 16.0
+step = 0.1
+value = 12.5
+editable = false
+
+[node name="AfrValueLabel" type="Label" parent="Layout/AfrRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(60, 0)
+text = "12.5"
+
+[node name="PowerPullRow" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="PowerPullButton" type="Button" parent="Layout/PowerPullRow"]
+layout_mode = 2
+text = "Start Power Pull (WOT sweep)"
+
+[node name="RampRateLabel" type="Label" parent="Layout/PowerPullRow"]
+layout_mode = 2
+text = "Ramp: 400 rpm/s"
+
+[node name="RampRateSlider" type="HSlider" parent="Layout/PowerPullRow"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+min_value = 100.0
+max_value = 800.0
+step = 10.0
+value = 400.0
+
+[node name="Readouts" type="GridContainer" parent="Layout"]
+layout_mode = 2
+columns = 4
+
+[node name="RpmLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "RPM"
+
+[node name="RpmValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="TorqueLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Torque (Nm)"
+
+[node name="TorqueValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="PowerLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Power (kW)"
+
+[node name="PowerValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="BoostLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Boost (bar)"
+
+[node name="BoostValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="AfrLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "AFR (actual)"
+
+[node name="AfrValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="VeLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "VE"
+
+[node name="VeValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="AirLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Air (g/s)"
+
+[node name="AirValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="FuelLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Fuel (g/s)"
+
+[node name="FuelValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="CrLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Eff. Compression"
+
+[node name="CrValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="RevLimiterLabel" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "Rev Limiter"
+
+[node name="RevLimiterValue" type="Label" parent="Layout/Readouts"]
+layout_mode = 2
+text = "off"
+
+[node name="DynoGraph" type="Control" parent="Layout"]
+custom_minimum_size = Vector2(0, 280)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("3")
+
+[connection signal="value_changed" from="Layout/BoostRow/BoostSlider" to="." method="_on_boost_target_changed"]
+[connection signal="toggled" from="Layout/AfrRow/AfrCheckBox" to="." method="_on_afr_override_toggled"]
+[connection signal="value_changed" from="Layout/AfrRow/AfrSlider" to="." method="_on_afr_slider_changed"]
+[connection signal="value_changed" from="Layout/PowerPullRow/RampRateSlider" to="." method="_on_ramp_rate_changed"]
+[connection signal="pressed" from="Layout/PowerPullRow/PowerPullButton" to="." method="_on_power_pull_pressed"]

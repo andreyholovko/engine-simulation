@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Godot
+godot/.godot/
+godot/*.translation
+godot/addons/
+
+_bmad
+_bmad-output
+
+.claude
+.idea
+

@@ -1,0 +1,19 @@
+[project]
+name = "engine-simulation"
+version = "0.1.0"
+description = "Real-time parametric engine/turbo/ECU simulation core for a Godot-based drag racing simulator"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["engine_sim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
