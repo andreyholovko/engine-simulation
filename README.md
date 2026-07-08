@@ -1,9 +1,12 @@
 # Drag Racing Dyno Simulator
 
 A real-time, parametric engine/turbo/ECU simulation, driven from Godot via an
-embedded Python runtime (py4godot). Phase 1 (this repo, so far): an **engine
-dyno** — crank-only, no transmission, no wheels, no tire-road friction. Those
-arrive in the drag-strip phase.
+embedded Python runtime (py4godot). This repo is an **engine dyno** —
+crank-only, no transmission, no wheels, no tire-road friction. There's no
+drag-strip/transmission phase currently planned; work right now is focused on
+optimizing and deepening the realism of the dyno itself (more validated
+engines, tighter physical modeling, better procedural audio), not on adding
+new phases or features.
 
 ## Layout
 
@@ -34,8 +37,9 @@ godot/                         Godot 4.7+ project
   scripts/
     dyno_controller.py         py4godot Node: owns a DynoSession, ticks it every frame
     dyno_ui.gd                 Wires sliders/buttons/labels to the controller
-    dyno_graph.gd              Live torque/power-vs-rpm plot
-  scenes/Dyno.tscn             The dyno interface
+    dyno_graph.gd              Live torque/power-vs-rpm plot, auto-scaling axes per engine
+    dyno_audio.gd              Procedural engine + turbo sound, synthesized live from DynoController
+  scenes/Dyno.tscn             The dyno interface (DynoController + DynoAudio + UI)
 ```
 
 Everything under `engine_sim/` is still reached the same way from outside the
@@ -64,9 +68,8 @@ that. Now both just do `DynoSession()`, call `set_afr_override()` /
 `set_boost_target_percent()` / `start_power_pull()` / `tick()`, and read a
 `DynoSnapshot` back. `tests/test_session.py` locks this in with a test that
 builds two independent sessions and asserts they produce bit-identical
-curves -- a future 3rd consumer (a 3D drag-strip view) should do the same
-`DynoSession()` construction rather than reaching into `engine_sim.core`
-directly.
+curves -- any future consumer should do the same `DynoSession()` construction
+rather than reaching into `engine_sim.core` directly.
 
 ## Running the Python simulation (fully verified, no Godot needed)
 
@@ -209,12 +212,27 @@ Set it up once per machine:
 
 ### Sound
 
-Not in this repo yet -- an earlier pass (`dyno_audio.gd`, procedural engine/
-turbo/flutter/pop synthesis) was pulled back out to keep it as its own,
-separate change rather than tangled into engine selection/idle-fix work.
-`EngineSpec.firing_order` (see below) was kept, since it's a genuine engine
-fact independent of audio -- sound synthesis is a future consumer of it, not
-the other way around.
+`dyno_audio.gd` (a `DynoAudio` node alongside `DynoController` in
+`Dyno.tscn`) procedurally synthesizes engine and turbo sound live from the
+controller's state -- no audio assets. Two oscillators, each a pure function
+of a single continuously-advancing phase (never hard-reset, never driven by a
+separate envelope that can jump):
+
+- **Engine**: phase is counted in cylinders, not radians, so each firing
+  event lands a cubed half-sine pulse timed to real `cylinders * rpm / 120`
+  firing frequency. Per-cylinder amplitude (manufacturing-tolerance/runner-
+  length character) comes from `EngineSpec.firing_order_resolved`, is fixed
+  per engine (deterministic RNG seeded from `engine_generation`, not redrawn
+  every firing event), and always changes on a waveform zero-crossing, so
+  swapping engines mid-session can never click. A one-pole lowpass darkens
+  the tone with displacement (EA888 2.0L brightest, LS2 6.0L deepest) --
+  bigger engine sounds deeper, independent of firing rate.
+- **Turbo**: a whine that rises in pitch and gain with `boost_bar /
+  max_boost_bar` (spool fraction).
+
+`EngineSpec.firing_order` is the same data both audio and the physics model
+consume -- audio is a consumer of engine facts, not a separate system that
+guesses from cylinder count alone.
 
 ### Idle: holds 800rpm, doesn't stall or run away (fixed, worth knowing why)
 
@@ -248,8 +266,10 @@ Covered by `tests/test_components.py::test_zero_throttle_uses_bounded_idle_air_n
 and `tests/test_session.py::test_session_starts_at_idle_and_holds_it` /
 `::test_idle_recovers_after_a_power_pull`.
 
-## Not built yet
+## Not built, and not currently planned
 
-Transmission, drag strip mode (wheelspin, rolling resistance/tire friction --
-deliberately *not* modeled in dyno mode), and multi-engine presets beyond
-EA888 Gen3/Gen3B.
+Transmission and drag-strip mode (wheelspin, rolling resistance/tire friction
+-- deliberately *not* modeled in dyno mode). There's no roadmap toward these
+right now -- current work is optimization and realism on the dyno model
+itself (new validated engine/turbo presets, tighter physical modeling,
+audio), not new phases or scope.
