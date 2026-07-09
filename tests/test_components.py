@@ -42,6 +42,42 @@ def test_ecu_rev_limiter_cuts_fuel(ecu):
     assert reading.target_afr == 0.0
 
 
+def _fresh_ea888_ecu() -> ECU:
+    # Turbo carries spool-lag state, so two sequential .tick() calls on the
+    # *same* ECU aren't independent snapshots -- these tests need genuinely
+    # fresh instances to compare apples to apples.
+    return ECU(ParametricEngine(EA888_GEN3_IS20), Turbo(TURBO_IS20, firing_order_length=4))
+
+
+def test_torque_reduction_fraction_scales_indicated_torque_not_friction():
+    """Shift torque management (see ECU.tick()'s docstring) reduces
+    *indicated* torque only -- friction_torque_nm is real mechanical drag,
+    not something ignition retard/fuel trimming touches."""
+    baseline = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=0.0)
+    cut = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=0.5)
+    assert cut.engine.indicated_torque_nm == pytest.approx(baseline.engine.indicated_torque_nm * 0.5)
+    assert cut.engine.friction_torque_nm == pytest.approx(baseline.engine.friction_torque_nm)
+    assert cut.engine.net_torque_nm == pytest.approx(cut.engine.indicated_torque_nm - cut.engine.friction_torque_nm)
+
+
+def test_torque_reduction_fraction_can_drive_net_torque_negative():
+    """A severe enough cut lets friction dominate indicated torque -- the
+    same 'engine braking' shape DFCO already produces, not floored at 0."""
+    reading = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=1.0)
+    assert reading.engine.indicated_torque_nm == pytest.approx(0.0)
+    assert reading.engine.net_torque_nm == pytest.approx(-reading.engine.friction_torque_nm)
+
+
+def test_torque_reduction_fraction_clamps_out_of_range_values():
+    full_cut = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=1.0)
+    over = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=1.5)
+    assert over.engine.net_torque_nm == pytest.approx(full_cut.engine.net_torque_nm)
+
+    no_cut = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=0.0)
+    under = _fresh_ea888_ecu().tick(dt=0.01, rpm=4000.0, throttle=1.0, torque_reduction_fraction=-0.5)
+    assert under.engine.net_torque_nm == pytest.approx(no_cut.engine.net_torque_nm)
+
+
 def test_zero_throttle_uses_bounded_idle_air_not_full_atmospheric_map(ecu):
     """Zero throttle input must use the small, fixed idle-air-control
     opening (modest torque, held steady by the dyno brake in SimulationLoop)

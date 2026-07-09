@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="Drag Racing Dyno"
-run/main_scene="res://scenes/Dyno.tscn"
+run/main_scene="res://scenes/DragRace.tscn"
 config/features=PackedStringArray("4.7")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
 
 [physics]
 

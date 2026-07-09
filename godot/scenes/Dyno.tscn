@@ -29,53 +29,109 @@ offset_right = -16.0
 offset_bottom = -16.0
 theme_override_constants/separation = 10
 
-[node name="EngineRow" type="HBoxContainer" parent="Layout"]
+[node name="SetupSection" type="VBoxContainer" parent="Layout"]
 layout_mode = 2
 
-[node name="EngineLabel" type="Label" parent="Layout/EngineRow"]
+[node name="SetupLabel" type="Label" parent="Layout/SetupSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Setup (Engine + Drivetrain)"
+
+[node name="EngineRow" type="HBoxContainer" parent="Layout/SetupSection"]
+layout_mode = 2
+
+[node name="EngineLabel" type="Label" parent="Layout/SetupSection/EngineRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 0)
 text = "Engine"
 
-[node name="EngineOption" type="OptionButton" parent="Layout/EngineRow"]
+[node name="EngineOption" type="OptionButton" parent="Layout/SetupSection/EngineRow"]
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 
-[node name="TurboRow" type="HBoxContainer" parent="Layout"]
+[node name="TurboRow" type="HBoxContainer" parent="Layout/SetupSection"]
 layout_mode = 2
 
-[node name="TurboLabel" type="Label" parent="Layout/TurboRow"]
+[node name="TurboLabel" type="Label" parent="Layout/SetupSection/TurboRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 0)
 text = "Turbo"
 
-[node name="TurboOption" type="OptionButton" parent="Layout/TurboRow"]
+[node name="TurboOption" type="OptionButton" parent="Layout/SetupSection/TurboRow"]
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 
-[node name="BoostRow" type="HBoxContainer" parent="Layout"]
+[node name="ModeRow" type="HBoxContainer" parent="Layout/SetupSection"]
 layout_mode = 2
 
-[node name="BoostTargetLabel" type="Label" parent="Layout/BoostRow"]
+[node name="ModeCheckBox" type="CheckBox" parent="Layout/SetupSection/ModeRow"]
+layout_mode = 2
+text = "Chassis Dyno (clutch/gearbox/tires)"
+
+[node name="TireOption" type="OptionButton" parent="Layout/SetupSection/ModeRow"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+
+[node name="GearRow" type="HBoxContainer" parent="Layout/SetupSection"]
+layout_mode = 2
+
+[node name="GearLabel" type="Label" parent="Layout/SetupSection/GearRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Gear"
+
+[node name="TransmissionOption" type="OptionButton" parent="Layout/SetupSection/GearRow"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+
+[node name="ShiftDownButton" type="Button" parent="Layout/SetupSection/GearRow"]
+layout_mode = 2
+text = "-"
+
+[node name="GearValue" type="Label" parent="Layout/SetupSection/GearRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(100, 0)
+horizontal_alignment = 1
+text = "N"
+
+[node name="ShiftUpButton" type="Button" parent="Layout/SetupSection/GearRow"]
+layout_mode = 2
+text = "+"
+
+[node name="Sep1" type="HSeparator" parent="Layout"]
+layout_mode = 2
+
+[node name="TuningSection" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="TuningLabel" type="Label" parent="Layout/TuningSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Tuning"
+
+[node name="BoostRow" type="HBoxContainer" parent="Layout/TuningSection"]
+layout_mode = 2
+
+[node name="BoostTargetLabel" type="Label" parent="Layout/TuningSection/BoostRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 0)
 text = "Target Boost: 100%"
 
-[node name="BoostSlider" type="HSlider" parent="Layout/BoostRow"]
+[node name="BoostSlider" type="HSlider" parent="Layout/TuningSection/BoostRow"]
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 max_value = 100.0
 step = 1.0
 value = 100.0
 
-[node name="AfrRow" type="HBoxContainer" parent="Layout"]
+[node name="AfrRow" type="HBoxContainer" parent="Layout/TuningSection"]
 layout_mode = 2
 
-[node name="AfrCheckBox" type="CheckBox" parent="Layout/AfrRow"]
+[node name="AfrCheckBox" type="CheckBox" parent="Layout/TuningSection/AfrRow"]
 layout_mode = 2
 text = "Override target AFR"
 
-[node name="AfrSlider" type="HSlider" parent="Layout/AfrRow"]
+[node name="AfrSlider" type="HSlider" parent="Layout/TuningSection/AfrRow"]
 custom_minimum_size = Vector2(280, 0)
 layout_mode = 2
 min_value = 10.0
@@ -84,124 +140,190 @@ step = 0.1
 value = 12.5
 editable = false
 
-[node name="AfrValueLabel" type="Label" parent="Layout/AfrRow"]
+[node name="AfrValueLabel" type="Label" parent="Layout/TuningSection/AfrRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(60, 0)
 text = "12.5"
 
-[node name="PowerPullRow" type="HBoxContainer" parent="Layout"]
+[node name="Sep3" type="HSeparator" parent="Layout"]
 layout_mode = 2
 
-[node name="PowerPullButton" type="Button" parent="Layout/PowerPullRow"]
+[node name="RunSection" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="RunLabel" type="Label" parent="Layout/RunSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Run"
+
+[node name="PowerPullRow" type="HBoxContainer" parent="Layout/RunSection"]
+layout_mode = 2
+
+[node name="PowerPullButton" type="Button" parent="Layout/RunSection/PowerPullRow"]
 layout_mode = 2
 text = "Start Power Pull"
 
-[node name="ThrottleRow" type="HBoxContainer" parent="Layout"]
+[node name="FinishPullButton" type="Button" parent="Layout/RunSection/PowerPullRow"]
+layout_mode = 2
+disabled = true
+text = "Finish"
+
+[node name="ClearGraphButton" type="Button" parent="Layout/RunSection/PowerPullRow"]
+layout_mode = 2
+text = "Clear Readings"
+
+[node name="ThrottleRow" type="HBoxContainer" parent="Layout/RunSection"]
 layout_mode = 2
 
-[node name="ThrottleLabel" type="Label" parent="Layout/ThrottleRow"]
+[node name="ThrottleLabel" type="Label" parent="Layout/RunSection/ThrottleRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 0)
 text = "Throttle: 0%"
 
-[node name="ThrottleSlider" type="VSlider" parent="Layout/ThrottleRow"]
+[node name="ThrottleSlider" type="VSlider" parent="Layout/RunSection/ThrottleRow"]
 custom_minimum_size = Vector2(0, 150)
 layout_mode = 2
 max_value = 100.0
 step = 1.0
 value = 0.0
 
-[node name="Readouts" type="GridContainer" parent="Layout"]
+[node name="Sep4" type="HSeparator" parent="Layout"]
+layout_mode = 2
+
+[node name="ReadoutsSection" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="ReadoutsLabel" type="Label" parent="Layout/ReadoutsSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Live Readouts"
+
+[node name="Readouts" type="GridContainer" parent="Layout/ReadoutsSection"]
 layout_mode = 2
 columns = 4
 
-[node name="RpmLabel" type="Label" parent="Layout/Readouts"]
+[node name="RpmLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "RPM"
 
-[node name="RpmValue" type="Label" parent="Layout/Readouts"]
+[node name="RpmValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="TorqueLabel" type="Label" parent="Layout/Readouts"]
+[node name="TorqueLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Torque (Nm)"
 
-[node name="TorqueValue" type="Label" parent="Layout/Readouts"]
+[node name="TorqueValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="PowerLabel" type="Label" parent="Layout/Readouts"]
+[node name="PowerLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Power (kW)"
 
-[node name="PowerValue" type="Label" parent="Layout/Readouts"]
+[node name="PowerValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="BoostLabel" type="Label" parent="Layout/Readouts"]
+[node name="BoostLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Boost (bar)"
 
-[node name="BoostValue" type="Label" parent="Layout/Readouts"]
+[node name="BoostValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="AfrLabel" type="Label" parent="Layout/Readouts"]
+[node name="AfrLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "AFR (actual)"
 
-[node name="AfrValue" type="Label" parent="Layout/Readouts"]
+[node name="AfrValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="VeLabel" type="Label" parent="Layout/Readouts"]
+[node name="VeLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "VE"
 
-[node name="VeValue" type="Label" parent="Layout/Readouts"]
+[node name="VeValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="AirLabel" type="Label" parent="Layout/Readouts"]
+[node name="AirLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Air (g/s)"
 
-[node name="AirValue" type="Label" parent="Layout/Readouts"]
+[node name="AirValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="FuelLabel" type="Label" parent="Layout/Readouts"]
+[node name="FuelLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Fuel (g/s)"
 
-[node name="FuelValue" type="Label" parent="Layout/Readouts"]
+[node name="FuelValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="CrLabel" type="Label" parent="Layout/Readouts"]
+[node name="CrLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Eff. Compression"
 
-[node name="CrValue" type="Label" parent="Layout/Readouts"]
+[node name="CrValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="IatLabel" type="Label" parent="Layout/Readouts"]
+[node name="IatLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Intake Air Temp (C)"
 
-[node name="IatValue" type="Label" parent="Layout/Readouts"]
+[node name="IatValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "0"
 
-[node name="RevLimiterLabel" type="Label" parent="Layout/Readouts"]
+[node name="RevLimiterLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "Rev Limiter"
 
-[node name="RevLimiterValue" type="Label" parent="Layout/Readouts"]
+[node name="RevLimiterValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
 layout_mode = 2
 text = "off"
+
+[node name="WheelRpmLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "Wheel RPM"
+
+[node name="WheelRpmValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="VehicleSpeedLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "Speed (km/h)"
+
+[node name="VehicleSpeedValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="SlipLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "Tire Slip Ratio"
+
+[node name="SlipValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "0"
+
+[node name="ClutchLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "Clutch"
+
+[node name="ClutchValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "100% locked"
+
+[node name="Sep5" type="HSeparator" parent="Layout"]
+layout_mode = 2
 
 [node name="DynoGraph" type="Control" parent="Layout"]
 custom_minimum_size = Vector2(0, 280)
@@ -209,10 +331,17 @@ layout_mode = 2
 size_flags_vertical = 3
 script = ExtResource("3")
 
-[connection signal="item_selected" from="Layout/EngineRow/EngineOption" to="." method="_on_engine_selected"]
-[connection signal="item_selected" from="Layout/TurboRow/TurboOption" to="." method="_on_turbo_selected"]
-[connection signal="value_changed" from="Layout/BoostRow/BoostSlider" to="." method="_on_boost_target_changed"]
-[connection signal="toggled" from="Layout/AfrRow/AfrCheckBox" to="." method="_on_afr_override_toggled"]
-[connection signal="value_changed" from="Layout/AfrRow/AfrSlider" to="." method="_on_afr_slider_changed"]
-[connection signal="pressed" from="Layout/PowerPullRow/PowerPullButton" to="." method="_on_power_pull_pressed"]
-[connection signal="value_changed" from="Layout/ThrottleRow/ThrottleSlider" to="." method="_on_throttle_changed"]
+[connection signal="item_selected" from="Layout/SetupSection/EngineRow/EngineOption" to="." method="_on_engine_selected"]
+[connection signal="item_selected" from="Layout/SetupSection/TurboRow/TurboOption" to="." method="_on_turbo_selected"]
+[connection signal="toggled" from="Layout/SetupSection/ModeRow/ModeCheckBox" to="." method="_on_mode_toggled"]
+[connection signal="item_selected" from="Layout/SetupSection/ModeRow/TireOption" to="." method="_on_tire_selected"]
+[connection signal="item_selected" from="Layout/SetupSection/GearRow/TransmissionOption" to="." method="_on_transmission_selected"]
+[connection signal="pressed" from="Layout/SetupSection/GearRow/ShiftUpButton" to="." method="_on_shift_up_pressed"]
+[connection signal="pressed" from="Layout/SetupSection/GearRow/ShiftDownButton" to="." method="_on_shift_down_pressed"]
+[connection signal="value_changed" from="Layout/TuningSection/BoostRow/BoostSlider" to="." method="_on_boost_target_changed"]
+[connection signal="toggled" from="Layout/TuningSection/AfrRow/AfrCheckBox" to="." method="_on_afr_override_toggled"]
+[connection signal="value_changed" from="Layout/TuningSection/AfrRow/AfrSlider" to="." method="_on_afr_slider_changed"]
+[connection signal="pressed" from="Layout/RunSection/PowerPullRow/PowerPullButton" to="." method="_on_power_pull_pressed"]
+[connection signal="pressed" from="Layout/RunSection/PowerPullRow/FinishPullButton" to="." method="_on_finish_power_pull_pressed"]
+[connection signal="pressed" from="Layout/RunSection/PowerPullRow/ClearGraphButton" to="." method="_on_clear_graph_pressed"]
+[connection signal="value_changed" from="Layout/RunSection/ThrottleRow/ThrottleSlider" to="." method="_on_throttle_changed"]

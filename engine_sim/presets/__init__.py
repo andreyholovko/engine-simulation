@@ -30,6 +30,23 @@ from engine_sim.presets.turbos import (
     TURBO_LS2_TWIN,
     TURBO_NONE,
 )
+from engine_sim.presets.tires import (
+    COMPOUND_STREET,
+    COMPOUND_SPORT,
+    COMPOUND_DRAG,
+    TIRE_STREET,
+    TIRE_SPORT,
+    TIRE_DRAG,
+    TIRE_CHOICES,
+)
+from engine_sim.presets.transmissions import (
+    TRANSMISSION_6MT,
+    TRANSMISSION_AUTO_6SPEED,
+    TORQUE_CONVERTER_STANDARD,
+    CLUTCH_PERFORMANCE,
+    ROLLER_STANDARD,
+    TRANSMISSION_CHOICES,
+)
 
 # key -> (EngineSpec, TurboSpec, display name). The key is what
 # DynoSession.select_engine() and every UI (Godot, CLI) address a choice by;
@@ -80,4 +97,17 @@ __all__ = [
     "TURBO_NONE",
     "ENGINE_CHOICES",
     "TURBO_CHOICES_BY_ENGINE",
+    "COMPOUND_STREET",
+    "COMPOUND_SPORT",
+    "COMPOUND_DRAG",
+    "TIRE_STREET",
+    "TIRE_SPORT",
+    "TIRE_DRAG",
+    "TIRE_CHOICES",
+    "TRANSMISSION_6MT",
+    "TRANSMISSION_AUTO_6SPEED",
+    "TORQUE_CONVERTER_STANDARD",
+    "CLUTCH_PERFORMANCE",
+    "ROLLER_STANDARD",
+    "TRANSMISSION_CHOICES",
 ]

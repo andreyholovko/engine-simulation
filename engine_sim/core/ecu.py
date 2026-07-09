@@ -12,9 +12,19 @@ wastegate duty (boost target), and the rev limiter.
 
 AFR target and boost target both have a sane default control law, but can be
 overridden live -- exactly the "adjustable in real time" knobs the dyno needs.
+
+`tick()` also accepts a `torque_reduction_fraction` -- a real ECU responsibility
+too: automatic transmissions command a momentary torque cut (ignition retard
+or a partial fuel cut, not touched here at the AFR-control level) during a
+shift, both to protect the clutch packs from a full-torque hit and to make
+the shift feel controlled rather than jerky. Modeled as a reduction of
+*indicated* torque specifically (friction_torque_nm is untouched -- real
+mechanical drag doesn't go away just because combustion torque is being
+managed), so a severe enough cut can genuinely make net torque go negative
+for a moment, the same "engine braking" shape DFCO already produces.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from engine_sim.core.engine import Engine, EngineReading
@@ -162,8 +172,16 @@ class ECU:
         max_map = P_ATM + boost_pa if boost_pa > 0 else P_ATM
         return max(0.0, min(1.0, map_pa / max_map)) if max_map > 0 else 0.0
 
-    def tick(self, dt: float, rpm: float, throttle: float, ambient_temp_k: float = T_INTAKE_DEFAULT) -> EcuReading:
+    def tick(
+        self,
+        dt: float,
+        rpm: float,
+        throttle: float,
+        ambient_temp_k: float = T_INTAKE_DEFAULT,
+        torque_reduction_fraction: float = 0.0,
+    ) -> EcuReading:
         throttle = max(0.0, min(1.0, throttle))
+        torque_reduction_fraction = max(0.0, min(1.0, torque_reduction_fraction))
         closed_throttle = throttle <= 1e-6
         decel_fuel_cut = closed_throttle and rpm > self.dfco_reengage_rpm
         # Idle-air-equivalent opening only near idle -- well above it on a
@@ -195,6 +213,14 @@ class ECU:
             intake_temp_k=turbo_reading.intake_air_temp_k,
             octane=octane,
         )
+
+        if torque_reduction_fraction > 0.0:
+            reduced_indicated = engine_reading.indicated_torque_nm * (1.0 - torque_reduction_fraction)
+            engine_reading = replace(
+                engine_reading,
+                indicated_torque_nm=reduced_indicated,
+                net_torque_nm=reduced_indicated - engine_reading.friction_torque_nm,
+            )
 
         return EcuReading(
             engine=engine_reading,

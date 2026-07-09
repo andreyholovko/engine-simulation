@@ -136,3 +136,166 @@ class TurboSpec:
     # instead of a purely hand-tuned constant -- see
     # Turbo._compute_pulse_quality().
     exhaust_scroll_groups: int = 1
+
+
+@dataclass(frozen=True)
+class TireCompound:
+    """A tire's rubber, independent of its size. peak_mu/sliding_mu are
+    longitudinal friction coefficients (force = mu * normal load), the same
+    quantity real tire data sheets and racing-sim "grip level" numbers mean
+    -- a compound alone doesn't fully determine grip (see TireSpec.width_mm),
+    but it sets the coefficient a given contact patch delivers."""
+
+    name: str
+    peak_mu: float  # friction coefficient at the grip peak (slip_ratio_at_peak)
+    slip_ratio_at_peak: float  # fraction (0-1); real street tires peak around 0.10-0.15
+    sliding_mu: float  # coefficient once fully broken away (high slip, e.g. a burnout)
+
+
+@dataclass(frozen=True)
+class TireSpec:
+    """A physical tire+wheel assembly: size, width and compound, exactly the
+    three numbers a real tire sidecode (e.g. 225/45R17) plus a compound
+    choice actually specifies. Drives Tire's slip-ratio -> force curve."""
+
+    name: str
+    radius_m: float  # rolling radius, wheel+tire combined
+    width_mm: float
+    compound: TireCompound
+    # Rotational inertia of the wheel+tire assembly about its own axle --
+    # what a launch or a shift has to spin up/down, separate from the
+    # vehicle's own linear mass (see RollerSpec.vehicle_mass_kg).
+    inertia_kgm2: float = 1.2
+    # Width's effect on grip: modeled as a simple scaling off a reference
+    # width rather than a second curve -- wider than reference -> more
+    # contact patch -> more peak mu; narrower -> less. A real tire's width
+    # vs. grip relationship isn't perfectly linear either, but this captures
+    # the right *direction* and magnitude without inventing a second
+    # unvalidated curve shape on top of the compound's own.
+    reference_width_mm: float = 225.0
+    width_grip_sensitivity: float = 0.15  # fractional peak_mu change per 100% width delta from reference
+
+
+@dataclass(frozen=True)
+class ClutchSpec:
+    """Friction clutch between the engine/flywheel and the gearbox input
+    shaft. max_static_torque_nm is its torque capacity fully clamped
+    (locked) -- real clutches are sized with headroom over the engine's peak
+    torque so they *can* lock solidly; sized too small (or worn/slipping)
+    and it can't transmit everything the engine makes, which this model
+    reproduces directly (see core/clutch.py's lock-vs-slip decision)."""
+
+    name: str
+    max_static_torque_nm: float
+
+
+@dataclass(frozen=True)
+class TransmissionSpec:
+    """A manual gearbox: fixed ratios (index 0 = 1st) plus a final drive
+    ratio applied after every gear. shift_time_s is how long the auto-clutch
+    sequence (declutch -> swap ratio -> re-clutch) takes for a paddle/button
+    shift -- the torque-interruption window a real shift also has, just
+    without a driver-operated clutch pedal to control it (see
+    core/drivetrain.py)."""
+
+    name: str
+    gear_ratios: Tuple[float, ...]
+    final_drive_ratio: float
+    shift_time_s: float = 0.25
+
+
+@dataclass(frozen=True)
+class TorqueConverterSpec:
+    """A torque converter: the fluid coupling between the engine and the
+    gearbox input shaft (turbine) a torque-converter automatic launches and
+    idles through, with no driver-operated clutch pedal at all -- the
+    converter itself slips continuously, which is what actually produces the
+    "creeps forward at idle in Drive" behavior every automatic has (see
+    core/torque_converter.py for the physics)."""
+
+    name: str
+    # Impeller/pump absorption constant K: pump_torque = K * omega_pump^2 --
+    # the single number that sets both idle creep torque (small, at idle
+    # rpm) and WOT stall speed (the rpm the engine settles at against a
+    # stalled turbine -- realistic units land it around 2000-2500rpm).
+    capacity_nm_per_rads2: float
+    stall_torque_ratio: float  # multiplication at speed_ratio 0 (typ. 1.8-2.5)
+    coupling_speed_ratio: float  # speed_ratio where multiplication reaches 1.0 (typ. 0.85-0.9)
+    lockup_capacity_nm: float  # lockup clutch (TCC) torque capacity once fully applied
+    lockup_apply_time_s: float = 0.5
+    # Real TCCs release much faster than they apply -- releasing late (e.g.
+    # into a sudden kickdown) would fight the converter's own cushioning
+    # right when it's needed most.
+    lockup_release_time_s: float = 0.15
+    turbine_inertia_kgm2: float = 0.03  # turbine + gearbox input shaft -- small, like the manual's clutch disk
+
+
+@dataclass(frozen=True)
+class AutomaticTransmissionSpec:
+    """A torque-converter automatic: same gear_ratios/final_drive_ratio
+    shape as TransmissionSpec (Drivetrain reads them structurally -- it
+    doesn't care which type it was given), plus the torque converter and a
+    throttle-aware shift map that replaces the driver's own +/- shift
+    buttons entirely. "User input" for this transmission is just the
+    accelerator -- the same throttle_percent every mode already takes --
+    exactly like a real automatic, where load and road speed decide the
+    gear, not the driver's hand."""
+
+    name: str
+    gear_ratios: Tuple[float, ...]
+    final_drive_ratio: float
+    torque_converter: TorqueConverterSpec
+    # Clutch-pack swap time -- automatics blend gears smoother/slower than a
+    # paddle-shift manual's snappier ramp.
+    shift_time_s: float = 0.5
+    # Shift map: upshift/downshift rpm points at light throttle (economy)
+    # and at WOT (kickdown ceiling/floor), interpolated by throttle in
+    # between -- flooring it at cruise rpm should immediately want a lower
+    # gear (real kickdown), exactly what interpolating downshift_rpm up
+    # toward downshift_rpm_wot as throttle rises produces.
+    #
+    # downshift_rpm_wot needs real margin below whatever rpm an upshift at
+    # upshift_rpm_wot actually lands on in the *tallest-gap* gear pair (the
+    # ratio between adjacent gears isn't constant -- 1st->2nd is usually the
+    # biggest drop), or a WOT upshift can land right back at/below its own
+    # downshift floor and immediately reverse -- hunting, forever. Found
+    # directly: a 3800 floor here, against a 6MT-style box where 1st->2nd
+    # alone already lands a clean upshift at ~3855rpm, needed only the
+    # shift's own rpm sag (real engine braking during the torque-managed
+    # cut, not a bug) to dip under it.
+    upshift_rpm_light: float = 2200.0
+    upshift_rpm_wot: float = 6200.0
+    downshift_rpm_light: float = 1200.0
+    downshift_rpm_wot: float = 2800.0
+    # Lockup only engages from this gear upward (1st/2nd stay
+    # converter-coupled for launch smoothness/multiplication, same as real
+    # Aisin-class units), and only releases again above this throttle
+    # (kickdown wants the converter's own cushioning/multiplication back).
+    lockup_min_gear: int = 3
+    lockup_max_throttle: float = 0.6
+
+
+@dataclass(frozen=True)
+class RollerSpec:
+    """The chassis dyno's roller/drum, standing in for the road: it has its
+    own physical inertia (the drum itself) plus the vehicle's linear mass
+    reflected into an equivalent rotational inertia at the roller surface
+    (J = mass * radius^2 -- the standard trick for putting a car's mass on a
+    spinning drum), so accelerating the roller costs the same effort a real
+    car's mass would take to accelerate down a road."""
+
+    name: str
+    radius_m: float
+    inertia_kgm2: float  # the physical drum's own inertia
+    vehicle_mass_kg: float
+    parasitic_torque_nm: float = 15.0  # roller bearing + driveline drag, always opposing motion
+    # Deliberately not modeling weight transfer/aero downforce -- a fixed
+    # static split of the vehicle's weight onto the driven axle/tire this
+    # roller represents, not a full suspension/chassis dynamics model.
+    driven_axle_weight_fraction: float = 0.5
+    # Simple quadratic aero drag (F = 0.5*rho*Cd*A*v^2) -- without it, top
+    # gear never actually tops out (nothing opposes speed except a flat
+    # rolling drag), which reads as obviously wrong the first time anyone
+    # holds WOT for a while. Typical compact/sport-car coefficients.
+    drag_coefficient: float = 0.32
+    frontal_area_m2: float = 2.2

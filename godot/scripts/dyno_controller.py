@@ -26,6 +26,7 @@ def _ensure_engine_sim_importable() -> None:
 _ensure_engine_sim_importable()
 
 from engine_sim import DynoSession  # noqa: E402
+from engine_sim.core.automatic_drivetrain import AutomaticDrivetrain  # noqa: E402
 
 
 @gdclass
@@ -34,7 +35,8 @@ class dyno_controller(Node):
 	data bus -- this drives the dyno's live readout, not a display-only mock.
 	Inputs (set from the UI): afr_override, boost_target_percent,
 	octane_override, throttle_percent, and the start_power_pull()/
-	stop_power_pull()/select_engine_by_index()/select_turbo_by_index()
+	stop_power_pull()/select_engine_by_index()/select_turbo_by_index()/
+	select_dyno_mode_chassis()/select_tire_by_index()/shift_up()/shift_down()
 	methods. Outputs (read by the UI every frame): everything else,
 	including power_pull_active, which mirrors the session's own state --
 	it is not itself a control input.
@@ -63,6 +65,39 @@ class dyno_controller(Node):
 	intake_air_temp_c: float = 0.0
 	rev_limiter_active: bool = False
 	power_pull_active: bool = False
+
+	# --- chassis dyno: mode + drivetrain readout (see engine_sim.DynoSession
+	# .select_dyno_mode()/DrivetrainReading) -- all zero/false/locked-neutral
+	# while in crank mode, same "meaningful defaults" convention
+	# DynoSnapshot's own dataclass fields use. ---
+	dyno_mode_is_chassis: bool = False
+	gear: int = 0  # 0 = neutral
+	shifting: bool = False
+	wheel_rpm: float = 0.0
+	vehicle_speed_kmh: float = 0.0
+	slip_ratio: float = 0.0
+	clutch_engagement: float = 1.0
+	clutch_locked: bool = False
+	# Torque/power actually delivered to the roller -- what the graph should
+	# plot (see DynoSnapshot's own docstring: clutch/tire slip show up here
+	# as a real shortfall vs. torque_nm/power_kw, which are always the pure
+	# engine-crank numbers regardless of mode). Equal to torque_nm/power_kw
+	# in crank mode.
+	wheel_torque_nm: float = 0.0
+	wheel_power_kw: float = 0.0
+
+	# --- tire picker: TIRE_CHOICES, addressed by index (int) for the same
+	# str-across-py4godot-boundary reasoning as the engine/turbo pickers. ---
+	tire_count: int = 0
+	tire_name: str = ""  # last-resort/debug only, same as engine_name
+	tire_choices: str = ""  # ditto
+
+	# --- transmission picker: TRANSMISSION_CHOICES (manual vs automatic),
+	# same index-addressed reasoning as the tire picker above. ---
+	transmission_count: int = 0
+	transmission_name: str = ""  # last-resort/debug only, same as engine_name
+	transmission_choices: str = ""  # ditto
+	is_automatic_transmission: bool = False  # true once an AutomaticDrivetrain is live -- UI disables shift buttons
 
 	# --- engine picker: ENGINE_CHOICES, addressed by index (int) rather than
 	# key (str) -- py4godot's own examples only ever show int/float/bool/
@@ -106,6 +141,16 @@ class dyno_controller(Node):
 		self.engine_choices = "|".join(
 			f"{key}:{name}" for key, name in DynoSession.list_engine_choices()
 		)
+		self.tire_count = len(DynoSession.list_tire_choices())
+		self.tire_choices = "|".join(
+			f"{key}:{name}" for key, name in DynoSession.list_tire_choices()
+		)
+		self.tire_name = DynoSession.list_tire_choices()[0][1]
+		self.transmission_count = len(DynoSession.list_transmission_choices())
+		self.transmission_choices = "|".join(
+			f"{key}:{name}" for key, name in DynoSession.list_transmission_choices()
+		)
+		self.transmission_name = DynoSession.list_transmission_choices()[0][1]
 		self._refresh_engine_facts()
 
 	def _refresh_engine_facts(self) -> None:
@@ -165,6 +210,37 @@ class dyno_controller(Node):
 		self._session.select_turbo(key)
 		self._refresh_turbo_facts()
 
+	def select_dyno_mode_chassis(self, is_chassis: bool) -> None:
+		"""Crank/chassis toggle -- bool rather than the "crank"/"chassis"
+		string DynoSession.select_dyno_mode() actually takes, same
+		str-across-py4godot-boundary reasoning as every other picker here."""
+		if self._session is None:
+			return
+		self._session.select_dyno_mode("chassis" if is_chassis else "crank")
+		self.dyno_mode_is_chassis = is_chassis
+		self.is_automatic_transmission = isinstance(self._session.drivetrain, AutomaticDrivetrain)
+
+	def select_tire_by_index(self, index: int) -> None:
+		if self._session is None:
+			return
+		self._session.select_tire_by_index(index)
+		self.tire_name = DynoSession.list_tire_choices()[index][1]
+
+	def select_transmission_by_index(self, index: int) -> None:
+		if self._session is None:
+			return
+		self._session.select_transmission_by_index(index)
+		self.transmission_name = DynoSession.list_transmission_choices()[index][1]
+		self.is_automatic_transmission = isinstance(self._session.drivetrain, AutomaticDrivetrain)
+
+	def shift_up(self) -> None:
+		if self._session is not None:
+			self._session.shift_up()
+
+	def shift_down(self) -> None:
+		if self._session is not None:
+			self._session.shift_down()
+
 	def _physics_process(self, delta: float) -> None:
 		if self._session is None:
 			return
@@ -191,6 +267,16 @@ class dyno_controller(Node):
 		self.volumetric_efficiency = snapshot.volumetric_efficiency
 		self.intake_air_temp_c = snapshot.intake_air_temp_k - 273.15
 		self.rev_limiter_active = snapshot.rev_limiter_active
+
+		self.gear = snapshot.gear
+		self.shifting = snapshot.shifting
+		self.wheel_rpm = snapshot.wheel_rpm
+		self.vehicle_speed_kmh = snapshot.vehicle_speed_kmh
+		self.slip_ratio = snapshot.slip_ratio
+		self.clutch_engagement = snapshot.clutch_engagement
+		self.clutch_locked = snapshot.clutch_locked
+		self.wheel_torque_nm = snapshot.wheel_torque_nm
+		self.wheel_power_kw = snapshot.wheel_power_kw
 
 	def start_power_pull(self) -> None:
 		if self._session is None:

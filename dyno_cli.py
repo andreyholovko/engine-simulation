@@ -21,8 +21,16 @@ Commands:
     octane <value|auto>  set pump octane (knock/timing-retard model), or
                        "auto" to restore the engine's own knock_octane_requirement
     sweep              run a paced WOT power pull (idle -> rev limiter),
-                       print the torque/power curve
+                       print the torque/power curve -- crank mode only
     status             print the current reading
+    mode <crank|chassis>  switch dyno type -- chassis adds a clutch, manual
+                       gearbox and a tire slipping against the roller
+    tires              list tire choices (chassis mode)
+    tire <key>          swap tire size/compound (chassis mode)
+    transmissions      list transmission choices (chassis mode)
+    transmission <key>  swap manual <-> automatic (chassis mode)
+    shift up|down      shift gear (chassis mode, manual transmission only --
+                       the automatic shifts itself off throttle position)
     quit               exit
 """
 
@@ -30,7 +38,7 @@ from engine_sim import DynoSession, DynoSnapshot
 
 
 def status_line(s: DynoSnapshot) -> str:
-    return (
+    line = (
         f"rpm={s.rpm:6.0f}  torque={s.torque_nm:6.1f}Nm  "
         f"power={s.power_kw:6.1f}kW  boost={s.boost_bar:4.2f}bar  "
         f"afr={s.afr_actual:5.2f}  ve={s.volumetric_efficiency:4.2f}  "
@@ -40,6 +48,20 @@ def status_line(s: DynoSnapshot) -> str:
         f"iat={s.intake_air_temp_k - 273.15:4.1f}C"
         + ("  [REV LIMIT]" if s.rev_limiter_active else "")
     )
+    if s.dyno_mode == "chassis":
+        gear_label = "N" if s.gear == 0 else str(s.gear)
+        clutch_label = "locked" if s.clutch_locked else "SLIP"
+        line += (
+            f"\n         gear={gear_label:>2}  {'(shifting) ' if s.shifting else '           '}"
+            f"clutch={s.clutch_engagement:4.2f}({clutch_label})  "
+            f"wheel={s.wheel_rpm:6.0f}rpm  speed={s.vehicle_speed_kmh:6.1f}km/h  "
+            f"slip={s.slip_ratio:+6.3f}  "
+            # What a real chassis dyno actually measures (roller-derived) --
+            # compare against the engine torque/power above to see slip loss
+            # directly: they only diverge when the clutch or tire is slipping.
+            f"at_wheel={s.wheel_torque_nm:6.1f}Nm/{s.wheel_power_kw:5.1f}kW"
+        )
+    return line
 
 
 def run_sweep(session: DynoSession) -> None:
@@ -142,10 +164,51 @@ def main() -> None:
                     last_print = elapsed
 
         elif cmd == "sweep":
-            run_sweep(session)
+            try:
+                run_sweep(session)
+            except ValueError as exc:
+                print(exc)
 
         elif cmd == "status":
             print(status_line(session.tick(0.0, throttle_percent=throttle_pct)))
+
+        elif cmd == "mode" and len(parts) == 2:
+            try:
+                session.select_dyno_mode(parts[1])
+                print(f"dyno mode: {session.dyno_mode}")
+            except ValueError as exc:
+                print(exc)
+
+        elif cmd == "tires":
+            for key, name in DynoSession.list_tire_choices():
+                marker = "*" if key == session.tire_key else " "
+                print(f" {marker} {key:8s} {name}")
+
+        elif cmd == "tire" and len(parts) == 2:
+            try:
+                session.select_tire(parts[1])
+                print(f"tire: {parts[1]}")
+            except ValueError as exc:
+                print(exc)
+
+        elif cmd == "transmissions":
+            for key, name in DynoSession.list_transmission_choices():
+                marker = "*" if key == session.transmission_key else " "
+                print(f" {marker} {key:14s} {name}")
+
+        elif cmd == "transmission" and len(parts) == 2:
+            try:
+                session.select_transmission(parts[1])
+                print(f"transmission: {parts[1]}")
+            except ValueError as exc:
+                print(exc)
+
+        elif cmd == "shift" and len(parts) == 2 and parts[1].lower() in ("up", "down"):
+            if parts[1].lower() == "up":
+                session.shift_up()
+            else:
+                session.shift_down()
+            print(f"gear: {'N' if session.current_gear == 0 else session.current_gear}")
 
         else:
             print("unknown command -- see the module docstring (run: python -c \"import dyno_cli; print(dyno_cli.__doc__)\")")
