@@ -6,6 +6,7 @@ extends Control
 
 @onready var controller = $DynoController
 @onready var engine_option: OptionButton = $Layout/EngineRow/EngineOption
+@onready var turbo_option: OptionButton = $Layout/TurboRow/TurboOption
 @onready var boost_slider: HSlider = $Layout/BoostRow/BoostSlider
 @onready var boost_target_label: Label = $Layout/BoostRow/BoostTargetLabel
 @onready var afr_checkbox: CheckBox = $Layout/AfrRow/AfrCheckBox
@@ -42,10 +43,22 @@ const ENGINE_LABELS := [
 	"GM LS2 (Corvette C6, NA)",
 ]
 
+# Hardcoded per engine, matching engine_sim/presets/__init__.py's
+# TURBO_CHOICES_BY_ENGINE order exactly (index 0 is always that engine's own
+# stock/validated turbo) -- same "not read from a `str` property" reasoning
+# as ENGINE_LABELS above. Outer index lines up with ENGINE_LABELS' order.
+# Keep in sync with TURBO_CHOICES_BY_ENGINE if you add/reorder a turbo.
+const TURBO_LABELS_BY_ENGINE := [
+	["Stock IHI IS20", "IHI IS38 (hybrid swap)", "Aftermarket big-frame hybrid (TTE-class)"],
+	["Stock MHI single twin-scroll (340i)", "BMW B58TU (M340i/Supra factory upgrade)", "Aftermarket big single (Pure Stage 2-class)"],
+	["Naturally aspirated (stock)", "Twin-turbo kit (representative, stock-internals-safe)"],
+]
+
 
 func _ready() -> void:
 	controller.power_pull_finished.connect(_on_power_pull_finished)
 	_populate_engine_options()
+	_populate_turbo_options(0)
 
 
 func _populate_engine_options() -> void:
@@ -53,6 +66,14 @@ func _populate_engine_options() -> void:
 		engine_option.add_item(label)
 	if engine_option.item_count > 0:
 		engine_option.select(0)
+
+
+func _populate_turbo_options(engine_index: int) -> void:
+	turbo_option.clear()
+	for label in TURBO_LABELS_BY_ENGINE[engine_index]:
+		turbo_option.add_item(label)
+	if turbo_option.item_count > 0:
+		turbo_option.select(0)
 
 
 func _process(_delta: float) -> void:
@@ -74,6 +95,10 @@ func _process(_delta: float) -> void:
 
 func _on_engine_selected(index: int) -> void:
 	controller.select_engine_by_index(index)
+	# A different engine has a different turbo lineup entirely (DynoSession.
+	# select_engine() already resets to that engine's own stock turbo) --
+	# repopulate rather than leave the previous engine's options showing.
+	_populate_turbo_options(index)
 	# Switching engines always aborts any in-progress pull (DynoSession.
 	# select_engine() resets it internally) -- but that happens synchronously
 	# here, before the next _physics_process runs, so the usual True->False
@@ -81,6 +106,17 @@ func _on_engine_selected(index: int) -> void:
 	# never happens (is_power_pull_active is already False by the time it
 	# next checks). Reset the button/graph directly instead of relying on
 	# that signal for this specific case.
+	graph.clear_history()
+	power_pull_button.disabled = false
+	power_pull_button.text = "Start Power Pull"
+	throttle_slider.value = 0.0
+
+
+func _on_turbo_selected(index: int) -> void:
+	controller.select_turbo_by_index(index)
+	# Same reasoning as _on_engine_selected() above -- select_turbo() aborts
+	# an in-progress pull too, and the graph/button need resetting the same
+	# way (the engine itself, and so the turbo lineup, doesn't change here).
 	graph.clear_history()
 	power_pull_button.disabled = false
 	power_pull_button.text = "Start Power Pull"

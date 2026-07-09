@@ -41,6 +41,18 @@ text = "Engine"
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 
+[node name="TurboRow" type="HBoxContainer" parent="Layout"]
+layout_mode = 2
+
+[node name="TurboLabel" type="Label" parent="Layout/TurboRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 0)
+text = "Turbo"
+
+[node name="TurboOption" type="OptionButton" parent="Layout/TurboRow"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
 [node name="BoostRow" type="HBoxContainer" parent="Layout"]
 layout_mode = 2
 
@@ -198,6 +210,7 @@ size_flags_vertical = 3
 script = ExtResource("3")
 
 [connection signal="item_selected" from="Layout/EngineRow/EngineOption" to="." method="_on_engine_selected"]
+[connection signal="item_selected" from="Layout/TurboRow/TurboOption" to="." method="_on_turbo_selected"]
 [connection signal="value_changed" from="Layout/BoostRow/BoostSlider" to="." method="_on_boost_target_changed"]
 [connection signal="toggled" from="Layout/AfrRow/AfrCheckBox" to="." method="_on_afr_override_toggled"]
 [connection signal="value_changed" from="Layout/AfrRow/AfrSlider" to="." method="_on_afr_slider_changed"]

@@ -364,3 +364,77 @@ def test_afr_varies_with_partial_throttle_on_every_selectable_engine(engine_key)
     session.select_engine(engine_key)
     partial = session.tick(dt=0.01, throttle_percent=40.0)
     assert 12.5 < partial.afr_actual < 14.7
+
+
+@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
+def test_turbo_choices_are_listed_with_stock_first(engine_key):
+    session = DynoSession()
+    session.select_engine(engine_key)
+    choices = session.list_turbo_choices()
+    assert len(choices) >= 2  # every engine has at least a stock + one alternative
+    keys = [key for key, _ in choices]
+    assert len(keys) == len(set(keys))  # no duplicate keys
+    assert session.turbo_key == keys[0]  # freshly selected engine starts on its stock turbo
+
+
+@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
+def test_selecting_a_different_turbo_changes_the_dyno_curve_on_the_same_engine(engine_key):
+    """The actual point of the feature: swap only the turbo, keep the same
+    validated engine, and the curve must genuinely differ -- not just
+    accept the call and silently keep behaving like the stock unit."""
+    session = DynoSession()
+    session.select_engine(engine_key)
+    choices = session.list_turbo_choices()
+    stock_key, alt_key = choices[0][0], choices[1][0]
+
+    session.select_turbo(stock_key)
+    peak_stock = max(session.run_power_pull(), key=lambda r: r.torque_nm)
+    assert session.engine_key == engine_key  # still the same engine
+
+    session.select_turbo(alt_key)
+    peak_alt = max(session.run_power_pull(), key=lambda r: r.torque_nm)
+    assert session.engine_key == engine_key  # selecting a turbo never changes the engine
+
+    assert peak_alt.torque_nm != pytest.approx(peak_stock.torque_nm, rel=0.01)
+
+
+def test_select_turbo_by_index_matches_select_turbo_by_key():
+    by_index = DynoSession()
+    by_index.select_turbo_by_index(1)
+    by_key = DynoSession()
+    by_key.select_turbo(by_key.list_turbo_choices()[1][0])
+    assert by_index.turbo_key == by_key.turbo_key
+    assert by_index.ecu.turbo.spec.name == by_key.ecu.turbo.spec.name
+
+
+def test_select_turbo_rejects_unknown_key_for_current_engine():
+    session = DynoSession()
+    with pytest.raises(ValueError):
+        session.select_turbo("not_a_real_turbo")
+
+
+def test_select_turbo_by_index_rejects_out_of_range():
+    session = DynoSession()
+    with pytest.raises(ValueError):
+        session.select_turbo_by_index(99)
+
+
+def test_selecting_a_new_engine_resets_turbo_to_that_engines_stock_unit():
+    """A non-stock turbo choice from one engine isn't valid (or even
+    meaningful) on a different engine -- select_engine() must reset to the
+    new engine's own stock turbo, not silently carry over the old key."""
+    session = DynoSession()
+    session.select_turbo_by_index(1)  # a non-stock EA888 turbo
+    assert session.turbo_key != session.list_turbo_choices()[0][0]
+
+    session.select_engine("b58_340i")
+    assert session.turbo_key == session.list_turbo_choices()[0][0]  # back to B58's own stock unit
+
+
+def test_select_turbo_aborts_an_active_pull():
+    session = DynoSession()
+    session.start_power_pull()
+    assert session.is_power_pull_active
+
+    session.select_turbo_by_index(1)
+    assert not session.is_power_pull_active

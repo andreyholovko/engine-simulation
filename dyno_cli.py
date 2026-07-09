@@ -7,7 +7,10 @@ input()):
 
 Commands:
     engines            list selectable engines (key + display name)
-    engine <key>        switch to a different engine+turbo mid-session
+    engine <key>        switch to a different engine (and its stock turbo)
+    turbos              list turbo choices for the CURRENT engine
+    turbo <key>         swap turbos on the SAME engine -- different curve,
+                       same validated engine spec
     throttle <0-100>   set throttle percent (free-play mode)
     boost <0-100|auto>  override wastegate target as % of max boost, or
                        "auto" to restore full authority
@@ -82,6 +85,18 @@ def main() -> None:
             try:
                 session.select_engine(parts[1])
                 print(f"engine: {session.ecu.engine.spec.name}")
+            except ValueError as exc:
+                print(exc)
+
+        elif cmd == "turbos":
+            for key, name in session.list_turbo_choices():
+                marker = "*" if key == session.turbo_key else " "
+                print(f" {marker} {key:20s} {name}")
+
+        elif cmd == "turbo" and len(parts) == 2:
+            try:
+                session.select_turbo(parts[1])
+                print(f"turbo: {session.ecu.turbo.spec.name}")
             except ValueError as exc:
                 print(exc)
 

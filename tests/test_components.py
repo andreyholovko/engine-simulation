@@ -10,8 +10,14 @@ from engine_sim.presets import (
     EA888_GEN3_IS20,
     LS2_NA,
     TURBO_B58,
+    TURBO_B58_BIG_SINGLE,
+    TURBO_B58_TU,
+    TURBO_EA888_BIG_SINGLE_HYBRID,
     TURBO_IS20,
+    TURBO_IS38,
+    TURBO_LS2_TWIN,
     TURBO_NONE,
+    TURBO_CHOICES_BY_ENGINE,
 )
 from engine_sim.specs import CamSpec, EngineSpec, TurboSpec
 from engine_sim.units import BAR_TO_PA
@@ -553,3 +559,58 @@ def test_bore_stroke_and_cam_lift_overlap_are_descriptive_only():
     varied = ParametricEngine(varied_spec).compute(**kwargs)
     assert varied.net_torque_nm == pytest.approx(baseline.net_torque_nm)
     assert varied.ve == pytest.approx(baseline.ve)
+
+
+# --- Turbo variety (TURBO_CHOICES_BY_ENGINE) -----------------------------
+
+def test_is38_max_boost_is_realistic_not_the_old_placeholder():
+    """Regression guard: TURBO_IS38 used to carry a decorative placeholder
+    of 3.35 bar (~49psi -- nothing real runs anywhere near that), harmless
+    back when nothing constructed it. Now that it's a real selectable
+    option (the "IS38 hybrid swap"), it must stay in a plausible tuned-
+    turbo range."""
+    assert 1.0 < TURBO_IS38.max_boost_bar < 2.5
+
+
+@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
+def test_every_turbo_choice_has_a_unique_max_boost(engine_key):
+    """Sanity check on the data itself: if two options in the same engine's
+    list carried the same max_boost_bar, they wouldn't actually be
+    offering a meaningfully different choice."""
+    specs = [spec for _, spec, _ in TURBO_CHOICES_BY_ENGINE[engine_key]]
+    boosts = [s.max_boost_bar for s in specs]
+    assert len(boosts) == len(set(boosts))
+
+
+def test_b58_big_single_and_ea888_big_single_are_genuinely_single_scroll():
+    """The two aftermarket "big single" upgrades are documented as
+    abandoning the factory twin-scroll housing -- lock in that they're
+    actually configured that way (exhaust_scroll_groups=1), not just
+    described that way in a docstring."""
+    assert TURBO_B58_BIG_SINGLE.exhaust_scroll_groups == 1
+    # EA888's only ever been single-scroll (stock IS20 already is), so its
+    # big-single hybrid uses the class default rather than needing an
+    # explicit override -- confirm that default is still 1.
+    assert TURBO_EA888_BIG_SINGLE_HYBRID.exhaust_scroll_groups == 1
+
+
+def test_b58tu_and_ls2_twin_stay_multi_scroll():
+    """Counterpoint to the above: the B58TU keeps BMW's factory twin-scroll
+    housing (bigger unit, same layout), and a twin-turbo LS kit is one
+    turbo per bank of 4 cylinders -- the same "half the cylinders feed one
+    turbine path" shape as twin-scroll."""
+    assert TURBO_B58_TU.exhaust_scroll_groups == 2
+    assert TURBO_LS2_TWIN.exhaust_scroll_groups == 2
+
+
+def test_bigger_turbo_options_spool_later_than_stock():
+    """Real-world direction check: within each engine's list, a bigger
+    max_boost_bar option should spool_midpoint_rpm later than the stock
+    unit -- physically larger turbines take more exhaust energy/rpm to
+    spin up, the same trait TURBO_IS38's own docstring describes."""
+    for engine_key in ("ea888_gen3_is20", "b58_340i", "ls2_na"):
+        choices = TURBO_CHOICES_BY_ENGINE[engine_key]
+        stock_spec = choices[0][1]
+        for _, spec, name in choices[1:]:
+            assert spec.max_boost_bar > stock_spec.max_boost_bar, name
+            assert spec.spool_midpoint_rpm >= stock_spec.spool_midpoint_rpm, name

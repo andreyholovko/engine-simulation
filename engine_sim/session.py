@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from engine_sim.core import DynoBrake, DynoReading, ECU, ParametricEngine, SimulationLoop, Turbo
-from engine_sim.presets import EA888_GEN3_IS20, ENGINE_CHOICES, TURBO_IS20
+from engine_sim.presets import EA888_GEN3_IS20, ENGINE_CHOICES, TURBO_CHOICES_BY_ENGINE, TURBO_IS20
 from engine_sim.specs import EngineSpec, TurboSpec
 
 
@@ -67,6 +67,11 @@ class DynoSession:
         self._coasting = False
         self.idle_rpm_target = engine_spec.idle_rpm
         self.engine_key = engine_key
+        # Stock/default turbo for this engine by TURBO_CHOICES_BY_ENGINE
+        # convention (index 0) -- only meaningful when engine_key is an
+        # actual ENGINE_CHOICES key, same assumption the default args make.
+        turbo_choices = TURBO_CHOICES_BY_ENGINE.get(engine_key, [])
+        self.turbo_key = turbo_choices[0][0] if turbo_choices else None
 
     @property
     def ecu(self) -> ECU:
@@ -82,10 +87,13 @@ class DynoSession:
         return [(key, name) for key, (_, _, name) in ENGINE_CHOICES.items()]
 
     def select_engine(self, key: str) -> None:
-        """Swap to a different engine+turbo from ENGINE_CHOICES, mid-session.
-        Rebuilds Engine/Turbo/ECU (a different engine means different specs
-        driving them) but keeps the same DynoBrake -- the dyno's own inertia/
-        drag isn't a property of whichever engine happens to be mounted."""
+        """Swap to a different engine+its stock turbo from ENGINE_CHOICES,
+        mid-session. Rebuilds Engine/Turbo/ECU (a different engine means
+        different specs driving them) but keeps the same DynoBrake -- the
+        dyno's own inertia/drag isn't a property of whichever engine happens
+        to be mounted. Always resets to that engine's own stock turbo (see
+        TURBO_CHOICES_BY_ENGINE) -- a turbo choice from the previous engine
+        isn't necessarily valid, or even meaningful, on a different one."""
         if key not in ENGINE_CHOICES:
             raise ValueError(f"unknown engine choice: {key!r}. Available: {sorted(ENGINE_CHOICES)}")
         engine_spec, turbo_spec, _ = ENGINE_CHOICES[key]
@@ -98,6 +106,8 @@ class DynoSession:
         self._coasting = False
         self.idle_rpm_target = engine_spec.idle_rpm
         self.engine_key = key
+        turbo_choices = TURBO_CHOICES_BY_ENGINE.get(key, [])
+        self.turbo_key = turbo_choices[0][0] if turbo_choices else None
 
     def select_engine_by_index(self, index: int) -> None:
         """Same as select_engine(), addressed by position in ENGINE_CHOICES
@@ -110,6 +120,55 @@ class DynoSession:
         if not 0 <= index < len(keys):
             raise ValueError(f"engine index {index} out of range (0..{len(keys) - 1})")
         self.select_engine(keys[index])
+
+    @staticmethod
+    def list_turbo_choices_for_engine(engine_key: str) -> list[tuple[str, str]]:
+        """[(key, display_name), ...] of turbo choices for a given engine key
+        -- each engine has its own list (see TURBO_CHOICES_BY_ENGINE), so
+        this doesn't assume "the current engine" the way an instance method
+        would; useful for a UI populating a picker before/without switching."""
+        return [(key, name) for key, _, name in TURBO_CHOICES_BY_ENGINE.get(engine_key, [])]
+
+    def list_turbo_choices(self) -> list[tuple[str, str]]:
+        """Turbo choices for whichever engine is *currently* selected."""
+        return self.list_turbo_choices_for_engine(self.engine_key)
+
+    def select_turbo(self, key: str) -> None:
+        """Swap to a different turbo from the CURRENT engine's own
+        TURBO_CHOICES_BY_ENGINE list, keeping the same EngineSpec -- this is
+        the actual point of the feature: watch one validated engine produce
+        a genuinely different torque/power curve and spool timing under a
+        different turbo, the way a real turbo swap does, without also
+        changing which engine is "mounted." Aborts any in-progress pull and
+        resets to idle, same as select_engine()."""
+        choices = TURBO_CHOICES_BY_ENGINE.get(self.engine_key, [])
+        turbo_spec = next((spec for k, spec, _ in choices if k == key), None)
+        if turbo_spec is None:
+            available = [k for k, _, _ in choices]
+            raise ValueError(
+                f"unknown turbo choice {key!r} for engine {self.engine_key!r}. Available: {available}"
+            )
+        engine_spec = self.loop.ecu.engine.spec
+        engine = ParametricEngine(engine_spec)
+        turbo = Turbo(turbo_spec, firing_order_length=len(engine_spec.firing_order_resolved))
+        ecu = ECU(engine, turbo)
+        self.loop = SimulationLoop(ecu, self.loop.brake)
+        self.loop.brake.reset_pid()
+        self._power_pull_active = False
+        self._coasting = False
+        self.turbo_key = key
+
+    def select_turbo_by_index(self, index: int) -> None:
+        """Same as select_turbo(), addressed by position in the current
+        engine's TURBO_CHOICES_BY_ENGINE list instead of by string key --
+        same str-across-py4godot-boundary reasoning as
+        select_engine_by_index()."""
+        choices = TURBO_CHOICES_BY_ENGINE.get(self.engine_key, [])
+        if not 0 <= index < len(choices):
+            raise ValueError(
+                f"turbo index {index} out of range (0..{len(choices) - 1}) for engine {self.engine_key!r}"
+            )
+        self.select_turbo(choices[index][0])
 
     # --- control surface: the only knobs any consumer should touch ---
 

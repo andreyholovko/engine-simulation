@@ -48,6 +48,29 @@ def test_engine_command_rejects_unknown_key_without_crashing(monkeypatch, capsys
     assert "EA888" in out
 
 
+def test_turbos_command_lists_current_engines_choices(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["turbos", "quit"])
+    out = capsys.readouterr().out
+    session = DynoSession()
+    for key, name in session.list_turbo_choices():
+        assert key in out
+        assert name in out
+
+
+def test_turbo_command_switches_turbo_on_same_engine(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["turbo is38", "status", "quit"])
+    out = capsys.readouterr().out
+    assert "turbo: IHI IS38" in out
+    assert "EA888" in out  # still the same engine
+
+
+def test_turbo_command_rejects_unknown_key_without_crashing(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["turbo not_a_real_turbo", "status", "quit"])
+    out = capsys.readouterr().out
+    assert "unknown turbo choice" in out
+    assert "EA888" in out  # still alive, still on the default engine
+
+
 def test_throttle_and_step_advance_the_session(monkeypatch, capsys):
     _run_cli(monkeypatch, ["throttle 100", "step 2", "quit"])
     out = capsys.readouterr().out

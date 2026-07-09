@@ -168,11 +168,29 @@ func _turbo_sample(dt: float) -> float:
 	var max_boost_bar: float = max(controller.max_boost_bar, 0.01)
 	var spool: float = clamp(boost_bar / max_boost_bar, 0.0, 1.0)
 
-	var whine_hz: float = lerp(600.0, 3500.0, spool)
+	# Turbo SIZE character (which turbo is fitted -- max_boost_bar as a
+	# proxy for compressor/turbine size), separate from spool (how spooled
+	# THIS turbo currently is). A physically bigger turbine spins slower at
+	# full chat than a small one -- a lower-pitched, more "whoosh" whine --
+	# real and audible (e.g. a big aftermarket single vs. a small stock
+	# twin-scroll unit), not just "the same curve, higher number."
+	var size_fraction: float = clamp((max_boost_bar - 1.0) / 1.3, 0.0, 1.0)
+	var pitch_low: float = lerp(600.0, 350.0, size_fraction)
+	var pitch_high: float = lerp(3500.0, 2200.0, size_fraction)
+	var whine_hz: float = lerp(pitch_low, pitch_high, spool)
 	_turbo_phase = fmod(_turbo_phase + whine_hz * dt, 1.0)
+
+	# Loudness scales with the actual boost PRESSURE reached, not just
+	# relative spool fraction -- a big turbo genuinely making 2 bar is a
+	# more prominent sound event than a small one topping out at 0.7 bar,
+	# even though both read "100% spooled" in relative terms. 1.3 bar is
+	# the reference point (today's stock EA888/B58 ceiling); gain scales
+	# up past it for bigger setups and down for smaller ones (e.g. a mild
+	# LS2 twin-turbo kit reading quieter than a big aftermarket single).
+	var pressure_gain: float = clamp(boost_bar / 1.3, 0.0, 1.6)
 	# Gain is a conservative starting point (turbo whine is easy to overdo) --
 	# retune by ear once this is actually running in Godot.
-	return sin(TAU * _turbo_phase) * pow(spool, 1.4) * 0.0015
+	return sin(TAU * _turbo_phase) * pow(spool, 1.4) * pressure_gain * 0.0015
 
 
 func _next_sample() -> Vector2:

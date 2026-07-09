@@ -34,9 +34,10 @@ class dyno_controller(Node):
 	data bus -- this drives the dyno's live readout, not a display-only mock.
 	Inputs (set from the UI): afr_override, boost_target_percent,
 	octane_override, throttle_percent, and the start_power_pull()/
-	stop_power_pull() methods. Outputs (read by the UI every frame):
-	everything else, including power_pull_active, which mirrors the
-	session's own state -- it is not itself a control input.
+	stop_power_pull()/select_engine_by_index()/select_turbo_by_index()
+	methods. Outputs (read by the UI every frame): everything else,
+	including power_pull_active, which mirrors the session's own state --
+	it is not itself a control input.
 	"""
 
 	# --- inputs, driven by the UI scene ---
@@ -71,6 +72,15 @@ class dyno_controller(Node):
 	engine_name: str = ""  # last-resort/debug only, nothing load-bearing depends on this str
 	engine_choices: str = ""  # ditto
 
+	# --- turbo picker: TURBO_CHOICES_BY_ENGINE for the CURRENT engine, same
+	# index-addressed reasoning as the engine picker above. The list itself
+	# changes whenever the engine does (a different engine has different
+	# turbo options), which is why turbo_choices/turbo_count are refreshed
+	# from _refresh_engine_facts() too, not just on their own.
+	turbo_count: int = 0
+	turbo_name: str = ""  # last-resort/debug only, same as engine_name
+	turbo_choices: str = ""  # ditto
+
 	# --- engine/turbo facts, refreshed whenever the engine changes -- for
 	# audio synthesis (dyno_audio.gd). Kept as plain int/float, same reasoning
 	# as engine_count above.
@@ -103,9 +113,22 @@ class dyno_controller(Node):
 		self.engine_name = spec.name
 		self.cylinders = spec.cylinders
 		self.displacement_l = spec.displacement_l
-		self.max_boost_bar = self._session.ecu.turbo.spec.max_boost_bar
 		self.firing_order_length = len(spec.firing_order_resolved)
 		self.engine_generation += 1
+		self._refresh_turbo_choices()
+		self._refresh_turbo_facts()
+
+	def _refresh_turbo_choices(self) -> None:
+		choices = self._session.list_turbo_choices()
+		self.turbo_count = len(choices)
+		self.turbo_choices = "|".join(f"{key}:{name}" for key, name in choices)
+
+	def _refresh_turbo_facts(self) -> None:
+		# Deliberately separate from _refresh_turbo_choices(): switching
+		# turbos changes these but not the choice list itself (still the
+		# same engine), while switching engines changes both.
+		self.max_boost_bar = self._session.ecu.turbo.spec.max_boost_bar
+		self.turbo_name = self._session.ecu.turbo.spec.name
 
 	def get_firing_order_cylinder(self, index: int) -> int:
 		"""index into the current engine's firing order (0-based), e.g. for
@@ -129,6 +152,18 @@ class dyno_controller(Node):
 			return
 		self._session.select_engine(key)
 		self._refresh_engine_facts()
+
+	def select_turbo_by_index(self, index: int) -> None:
+		if self._session is None:
+			return
+		self._session.select_turbo_by_index(index)
+		self._refresh_turbo_facts()
+
+	def select_turbo(self, key: str) -> None:
+		if self._session is None:
+			return
+		self._session.select_turbo(key)
+		self._refresh_turbo_facts()
 
 	def _physics_process(self, delta: float) -> None:
 		if self._session is None:
