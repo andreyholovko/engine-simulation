@@ -27,6 +27,7 @@ from engine_sim.units import rad_s_to_rpm, rpm_to_rad_s
 
 ROLLER_FIELDS_OTHER_THAN_GRIP = (
     "radius_m", "inertia_kgm2", "vehicle_mass_kg", "parasitic_torque_nm", "drag_coefficient", "frontal_area_m2",
+    "downforce_coefficient",
 )
 
 

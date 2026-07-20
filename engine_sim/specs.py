@@ -334,3 +334,14 @@ class RollerSpec:
     # holds WOT for a while. Typical compact/sport-car coefficients.
     drag_coefficient: float = 0.32
     frontal_area_m2: float = 2.2
+    # Same quadratic-in-speed shape as drag (F = 0.5*rho*Cl*A*v^2), added
+    # straight onto the driven axle's own normal force in
+    # Drivetrain._normal_force_n -- more speed genuinely means more grip,
+    # not just more drag. Deliberately small/near-zero by default: a stock
+    # street car's own aero is close to neutral (a few kg of downforce at
+    # most, nothing like a dedicated aero package), so this mainly matters
+    # at the higher speeds a drag strip run actually reaches, not down at
+    # launch -- the low-speed grip story is still almost entirely
+    # driven_axle_weight_fraction/tire compound, same as before this field
+    # existed.
+    downforce_coefficient: float = 0.0

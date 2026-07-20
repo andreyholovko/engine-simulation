@@ -119,7 +119,7 @@ class drag_controller(Node):
 		self._tire_index = 0  # index into TIRE_CHOICES; 0 = street
 
 	def _ready(self) -> None:
-		self._session = DynoSession()
+		self._session = DynoSession(surface="road")
 		self._session.select_dyno_mode("chassis")
 		self._session.select_transmission("auto_6speed")
 		self._refresh_engine_facts()
@@ -162,7 +162,7 @@ class drag_controller(Node):
 		silently revert to that car's stock turbo, and a fresh DynoSession()
 		always starts on the street tire, quietly discarding whatever the
 		driver had picked before hitting Restart."""
-		self._session = DynoSession()
+		self._session = DynoSession(surface="road")
 		self._session.select_dyno_mode("chassis")
 		self._session.select_transmission("auto_6speed")
 		self._session.select_car(self._car_key)

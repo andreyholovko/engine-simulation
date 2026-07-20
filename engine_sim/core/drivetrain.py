@@ -170,7 +170,19 @@ class Drivetrain:
 
     @property
     def _normal_force_n(self) -> float:
-        return self.roller_spec.vehicle_mass_kg * G * self.roller_spec.driven_axle_weight_fraction
+        """Static weight on the driven axle plus its share of aero
+        downforce -- the tire's actual available grip grows with speed, not
+        just a fixed fraction of curb weight (see RollerSpec.
+        downforce_coefficient's own docstring on why this stays small at
+        normal driving speeds and only really shows up on a drag-strip-
+        length pull)."""
+        static_n = self.roller_spec.vehicle_mass_kg * G * self.roller_spec.driven_axle_weight_fraction
+        vehicle_speed_mps = self.omega_roller * self.roller_spec.radius_m
+        downforce_n = (
+            0.5 * RHO_AIR_KG_M3 * self.roller_spec.downforce_coefficient
+            * self.roller_spec.frontal_area_m2 * vehicle_speed_mps * vehicle_speed_mps
+        )
+        return static_n + downforce_n * self.roller_spec.driven_axle_weight_fraction
 
     def _integrate_wheel(self, alpha_wheel: float, sub_dt: float) -> None:
         """Advances omega_wheel by alpha_wheel*sub_dt, clamped so it can

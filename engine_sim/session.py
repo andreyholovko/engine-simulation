@@ -32,6 +32,7 @@ from engine_sim.presets import (
     CAR_CHOICES,
     CLUTCH_PERFORMANCE,
     ROLLER_BY_DRIVETRAIN_LAYOUT,
+    ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT,
     TIRE_CHOICES,
     TRANSMISSION_CHOICES,
     TURBO_CHOICES_BY_CAR,
@@ -89,6 +90,7 @@ class DynoSession:
         self,
         brake: Optional[DynoBrake] = None,
         car_key: str = "mk7_gti",
+        surface: str = "dyno",
     ):
         """car_key selects both the engine and its stock turbo at once (see
         presets.CAR_CHOICES) -- there's deliberately no separate engine_spec/
@@ -96,18 +98,33 @@ class DynoSession:
         tests) only ever picked a *car*, never an engine spec in the
         abstract, so carrying that extra pair of params was just a way for
         them to silently drift out of sync with car_key with no caller
-        actually needing the flexibility."""
+        actually needing the flexibility.
+
+        surface picks which RollerSpec family chassis mode uses for
+        traction/mass (see ROLLER_BY_DRIVETRAIN_LAYOUT/
+        ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT) -- "dyno" (default) is a real
+        chassis-dyno bench, with a physical roller/drum's own rotational
+        inertia included as real resistance; "road" is the open road (what
+        the drag strip scene actually simulates), with that drum inertia
+        removed since no physical drum exists there. Fixed for the life of
+        a session (unlike dyno_mode) -- there's no real user action that
+        corresponds to swapping which physical context a car is in
+        mid-session, so there's deliberately no select_surface()."""
         if car_key not in CAR_CHOICES:
             raise ValueError(f"unknown car choice: {car_key!r}. Available: {sorted(CAR_CHOICES)}")
+        if surface not in ("dyno", "road"):
+            raise ValueError(f"unknown surface: {surface!r}. Available: ['dyno', 'road']")
         car = CAR_CHOICES[car_key]
 
-        # dyno_mode/tire_key/transmission_key/car_key must exist before
-        # _build_loop() is first called (it reads them to decide what kind
-        # of loop, and which car's own RollerSpec/traction, to construct).
+        # dyno_mode/tire_key/transmission_key/car_key/surface must exist
+        # before _build_loop() is first called (it reads them to decide
+        # what kind of loop, and which car's own RollerSpec/traction, to
+        # construct).
         self.dyno_mode = "crank"
         self.tire_key = "street"
         self.transmission_key = "manual_6speed"
         self.car_key = car_key
+        self.surface = surface
         self.drivetrain: Optional[Union[Drivetrain, AutomaticDrivetrain]] = None
 
         self.loop = self._build_loop(car.engine_spec, car.turbo_spec, brake if brake is not None else DynoBrake())
@@ -151,7 +168,8 @@ class DynoSession:
             return SimulationLoop(ecu, brake)
         tire_spec, _ = TIRE_CHOICES[self.tire_key]
         transmission_spec, _ = TRANSMISSION_CHOICES[self.transmission_key]
-        roller_spec = ROLLER_BY_DRIVETRAIN_LAYOUT[CAR_CHOICES[self.car_key].drivetrain_layout]
+        roller_by_layout = ROLLER_BY_DRIVETRAIN_LAYOUT if self.surface == "dyno" else ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT
+        roller_spec = roller_by_layout[CAR_CHOICES[self.car_key].drivetrain_layout]
         if isinstance(transmission_spec, AutomaticTransmissionSpec):
             self.drivetrain = AutomaticDrivetrain(transmission_spec, CLUTCH_PERFORMANCE, tire_spec, roller_spec)
         else:

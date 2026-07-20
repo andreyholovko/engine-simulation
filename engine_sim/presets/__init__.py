@@ -48,6 +48,10 @@ from engine_sim.presets.transmissions import (
     ROLLER_RWD,
     ROLLER_AWD,
     ROLLER_BY_DRIVETRAIN_LAYOUT,
+    ROLLER_ROAD_FWD,
+    ROLLER_ROAD_RWD,
+    ROLLER_ROAD_AWD,
+    ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT,
     TRANSMISSION_CHOICES,
 )
 from engine_sim.specs import CarSpec
@@ -133,5 +137,9 @@ __all__ = [
     "ROLLER_RWD",
     "ROLLER_AWD",
     "ROLLER_BY_DRIVETRAIN_LAYOUT",
+    "ROLLER_ROAD_FWD",
+    "ROLLER_ROAD_RWD",
+    "ROLLER_ROAD_AWD",
+    "ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT",
     "TRANSMISSION_CHOICES",
 ]

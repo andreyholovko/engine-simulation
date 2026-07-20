@@ -61,6 +61,7 @@ ROLLER_RWD = RollerSpec(
     vehicle_mass_kg=1500.0,
     parasitic_torque_nm=15.0,
     driven_axle_weight_fraction=0.50,
+    downforce_coefficient=0.12,
 )
 ROLLER_FWD = replace(
     ROLLER_RWD, name="Standard single-roller chassis dyno (FWD)", driven_axle_weight_fraction=0.40,
@@ -77,6 +78,35 @@ ROLLER_BY_DRIVETRAIN_LAYOUT = {
     "fwd": ROLLER_FWD,
     "rwd": ROLLER_RWD,
     "awd": ROLLER_AWD,
+}
+
+# Same three roller/grip profiles, but for DynoSession's "road" surface (see
+# DynoSession.__init__'s surface param) instead of a physical chassis-dyno
+# bench -- the drag strip scene reuses the exact same engine/transmission/
+# tire/traction physics (see ChassisDynoLoop/Drivetrain) rather than a
+# separate "road" simulation stack, but there's a real, physical difference
+# between the two contexts that reusing the SAME RollerSpec would silently
+# paper over: a chassis dyno bench has an actual heavy steel roller/drum the
+# car's driven wheels spin against, and that drum's own rotational inertia
+# (inertia_kgm2=80.0 above) is real resistance a dyno pull has to fight that
+# doesn't exist at all on an open road. Reusing the bench's RollerSpec for
+# the drag strip was found to silently reflect that drum inertia in as
+# ~80/radius_m^2 (here, 1280kg) of *phantom* extra vehicle mass -- roughly
+# doubling the car's effective mass and, with it, roughly doubling its
+# simulated 0-100 time versus the real car. inertia_kgm2=0.0 here removes
+# exactly that phantom mass (the vehicle's own mass is still reflected in
+# via vehicle_mass_kg * radius_m^2, same mechanism, see RollerSpec's
+# docstring) -- everything else (grip split, drag, downforce, curb weight)
+# stays identical to the bench variant on purpose, so switching surface
+# changes only "is there a physical drum," nothing else.
+ROLLER_ROAD_RWD = replace(ROLLER_RWD, name="Open road (RWD)", inertia_kgm2=0.0)
+ROLLER_ROAD_FWD = replace(ROLLER_FWD, name="Open road (FWD)", inertia_kgm2=0.0)
+ROLLER_ROAD_AWD = replace(ROLLER_AWD, name="Open road (AWD)", inertia_kgm2=0.0)
+
+ROLLER_ROAD_BY_DRIVETRAIN_LAYOUT = {
+    "fwd": ROLLER_ROAD_FWD,
+    "rwd": ROLLER_ROAD_RWD,
+    "awd": ROLLER_ROAD_AWD,
 }
 
 # Tuned against the EA888/IS20 (idle creep settles ~795rpm from an 900rpm
