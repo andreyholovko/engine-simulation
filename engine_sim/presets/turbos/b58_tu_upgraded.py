@@ -4,7 +4,7 @@ bigger compressor/turbine than the base 340i's unit (presets/turbos/
 b58_single_twin_scroll.py), still a single twin-scroll housing, producing
 382hp factory-rated versus the 340i's 320hp at a higher boost level.
 
-Selectable in TURBO_CHOICES_BY_ENGINE for B58_340I (presets/__init__.py) --
+Selectable in TURBO_CHOICES_BY_CAR for B58_340I (presets/__init__.py) --
 same short-block/tune otherwise, fitting the bigger factory turbo alone
 should visibly lift the whole curve, the same direction the real M340i/
 Supra differ from the base 340i."""

@@ -133,12 +133,12 @@ def test_idle_recovers_after_a_power_pull():
     assert abs(snapshot.rpm - session.idle_rpm_target) < 50.0
 
 
-def test_select_engine_switches_to_a_validated_curve():
+def test_select_car_switches_to_a_validated_curve():
     session = DynoSession()
-    assert session.engine_key == "ea888_gen3_is20"
+    assert session.car_key == "mk7_gti"
 
-    session.select_engine("b58_340i")
-    assert session.engine_key == "b58_340i"
+    session.select_car("f30_340i")
+    assert session.car_key == "f30_340i"
     assert session.loop.rpm == pytest.approx(700.0)  # B58's idle, not the EA888's 800
 
     peak_t = max(session.run_power_pull(), key=lambda s: s.torque_nm)
@@ -148,32 +148,32 @@ def test_select_engine_switches_to_a_validated_curve():
     assert 203.0 <= peak_p.power_kw <= 274.0
 
 
-def test_select_engine_rejects_unknown_key():
+def test_select_car_rejects_unknown_key():
     session = DynoSession()
     with pytest.raises(ValueError):
-        session.select_engine("does_not_exist")
+        session.select_car("does_not_exist")
 
 
-def test_list_engine_choices_includes_both_validated_engines():
-    keys = {key for key, _ in DynoSession.list_engine_choices()}
-    assert {"ea888_gen3_is20", "b58_340i"} <= keys
+def test_list_car_choices_includes_both_validated_engines():
+    keys = {key for key, _ in DynoSession.list_car_choices()}
+    assert {"mk7_gti", "f30_340i"} <= keys
 
 
-def test_select_engine_by_index_matches_select_engine_by_key():
+def test_select_car_by_index_matches_select_car_by_key():
     """The Godot-facing path (index-based, avoiding str across the py4godot
     boundary) must land on the exact same engine as the key-based one."""
     by_index = DynoSession()
-    by_index.select_engine_by_index(1)
+    by_index.select_car_by_index(1)
     by_key = DynoSession()
-    by_key.select_engine("b58_340i")
-    assert by_index.engine_key == by_key.engine_key == "b58_340i"
+    by_key.select_car("f30_340i")
+    assert by_index.car_key == by_key.car_key == "f30_340i"
     assert by_index.ecu.engine.spec.name == by_key.ecu.engine.spec.name
 
 
-def test_select_engine_by_index_rejects_out_of_range():
+def test_select_car_by_index_rejects_out_of_range():
     session = DynoSession()
     with pytest.raises(ValueError):
-        session.select_engine_by_index(99)
+        session.select_car_by_index(99)
 
 
 def test_power_pull_transitions_active_flag():
@@ -262,17 +262,17 @@ def test_stop_power_pull_clears_active_flag_and_resumes_normal_ticking():
     assert not snapshot.power_pull_active
 
 
-def test_selecting_a_new_engine_aborts_an_active_pull():
+def test_selecting_a_new_car_aborts_an_active_pull():
     session = DynoSession()
     session.start_power_pull()
     assert session.is_power_pull_active
 
-    session.select_engine("ls2_na")
+    session.select_car("c6_corvette")
     assert not session.is_power_pull_active
 
     session2 = DynoSession()
     session2.start_power_pull()
-    session2.select_engine_by_index(2)  # ls2_na
+    session2.select_car_by_index(2)  # c6_corvette
     assert not session2.is_power_pull_active
 
 
@@ -332,16 +332,16 @@ def test_back_to_back_pulls_run_measurably_weaker_from_heat_soak():
     assert peak_second < peak_first
 
 
-@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
-def test_afr_behaves_correctly_across_every_selectable_engine(engine_key):
+@pytest.mark.parametrize("car_key", ["mk7_gti", "f30_340i", "c6_corvette"])
+def test_afr_behaves_correctly_across_every_selectable_car(car_key):
     """Real gap: existing AFR tests only ever exercised the default EA888
     session. The control law is deliberately NOT engine-parameterized (see
     ECU.target_afr()), so every engine should show the exact same idle vs.
     WOT AFR readings -- assert that explicitly per engine rather than
     trusting it by extrapolation from one."""
     session = DynoSession()
-    session.select_engine(engine_key)
-    assert session.engine_key == engine_key
+    session.select_car(car_key)
+    assert session.car_key == car_key
 
     idle = session.tick(dt=0.01, throttle_percent=0.0)
     assert idle.afr_actual > 12.5  # richer-than-power-AFR is wrong; near-stoich at idle is right
@@ -351,8 +351,8 @@ def test_afr_behaves_correctly_across_every_selectable_engine(engine_key):
     assert wot.afr_actual == pytest.approx(12.5)
 
 
-@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
-def test_afr_varies_with_partial_throttle_on_every_selectable_engine(engine_key):
+@pytest.mark.parametrize("car_key", ["mk7_gti", "f30_340i", "c6_corvette"])
+def test_afr_varies_with_partial_throttle_on_every_selectable_car(car_key):
     """Companion to the above: load-based variation (not just the idle/WOT
     endpoints) must also hold for every engine. A full WOT run_power_pull()
     doesn't actually exercise this -- load_fraction reaches ~1.0 on the very
@@ -361,15 +361,15 @@ def test_afr_varies_with_partial_throttle_on_every_selectable_engine(engine_key)
     actually varies load_fraction meaningfully, per engine's own turbo/NA
     characteristics."""
     session = DynoSession()
-    session.select_engine(engine_key)
+    session.select_car(car_key)
     partial = session.tick(dt=0.01, throttle_percent=40.0)
     assert 12.5 < partial.afr_actual < 14.7
 
 
-@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
-def test_turbo_choices_are_listed_with_stock_first(engine_key):
+@pytest.mark.parametrize("car_key", ["mk7_gti", "f30_340i", "c6_corvette"])
+def test_turbo_choices_are_listed_with_stock_first(car_key):
     session = DynoSession()
-    session.select_engine(engine_key)
+    session.select_car(car_key)
     choices = session.list_turbo_choices()
     assert len(choices) >= 2  # every engine has at least a stock + one alternative
     keys = [key for key, _ in choices]
@@ -377,23 +377,23 @@ def test_turbo_choices_are_listed_with_stock_first(engine_key):
     assert session.turbo_key == keys[0]  # freshly selected engine starts on its stock turbo
 
 
-@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
-def test_selecting_a_different_turbo_changes_the_dyno_curve_on_the_same_engine(engine_key):
+@pytest.mark.parametrize("car_key", ["mk7_gti", "f30_340i", "c6_corvette"])
+def test_selecting_a_different_turbo_changes_the_dyno_curve_on_the_same_car(car_key):
     """The actual point of the feature: swap only the turbo, keep the same
     validated engine, and the curve must genuinely differ -- not just
     accept the call and silently keep behaving like the stock unit."""
     session = DynoSession()
-    session.select_engine(engine_key)
+    session.select_car(car_key)
     choices = session.list_turbo_choices()
     stock_key, alt_key = choices[0][0], choices[1][0]
 
     session.select_turbo(stock_key)
     peak_stock = max(session.run_power_pull(), key=lambda r: r.torque_nm)
-    assert session.engine_key == engine_key  # still the same engine
+    assert session.car_key == car_key  # still the same engine
 
     session.select_turbo(alt_key)
     peak_alt = max(session.run_power_pull(), key=lambda r: r.torque_nm)
-    assert session.engine_key == engine_key  # selecting a turbo never changes the engine
+    assert session.car_key == car_key  # selecting a turbo never changes the engine
 
     assert peak_alt.torque_nm != pytest.approx(peak_stock.torque_nm, rel=0.01)
 
@@ -407,7 +407,7 @@ def test_select_turbo_by_index_matches_select_turbo_by_key():
     assert by_index.ecu.turbo.spec.name == by_key.ecu.turbo.spec.name
 
 
-def test_select_turbo_rejects_unknown_key_for_current_engine():
+def test_select_turbo_rejects_unknown_key_for_current_car():
     session = DynoSession()
     with pytest.raises(ValueError):
         session.select_turbo("not_a_real_turbo")
@@ -419,15 +419,15 @@ def test_select_turbo_by_index_rejects_out_of_range():
         session.select_turbo_by_index(99)
 
 
-def test_selecting_a_new_engine_resets_turbo_to_that_engines_stock_unit():
+def test_selecting_a_new_car_resets_turbo_to_that_cars_stock_unit():
     """A non-stock turbo choice from one engine isn't valid (or even
-    meaningful) on a different engine -- select_engine() must reset to the
+    meaningful) on a different engine -- select_car() must reset to the
     new engine's own stock turbo, not silently carry over the old key."""
     session = DynoSession()
     session.select_turbo_by_index(1)  # a non-stock EA888 turbo
     assert session.turbo_key != session.list_turbo_choices()[0][0]
 
-    session.select_engine("b58_340i")
+    session.select_car("f30_340i")
     assert session.turbo_key == session.list_turbo_choices()[0][0]  # back to B58's own stock unit
 
 

@@ -26,29 +26,29 @@ def test_status_line_formats_all_fields_and_flags_rev_limit():
     assert "[REV LIMIT]" in dyno_cli.status_line(snapshot)
 
 
-def test_engines_command_lists_all_choices(monkeypatch, capsys):
-    _run_cli(monkeypatch, ["engines", "quit"])
+def test_cars_command_lists_all_choices(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["cars", "quit"])
     out = capsys.readouterr().out
-    for key, name in DynoSession.list_engine_choices():
+    for key, name in DynoSession.list_car_choices():
         assert key in out
         assert name in out
 
 
-def test_engine_command_switches_engine(monkeypatch, capsys):
-    _run_cli(monkeypatch, ["engine b58_340i", "status", "quit"])
+def test_car_command_switches_car(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["car f30_340i", "status", "quit"])
     out = capsys.readouterr().out
     assert "BMW B58B30" in out
 
 
-def test_engine_command_rejects_unknown_key_without_crashing(monkeypatch, capsys):
-    _run_cli(monkeypatch, ["engine not_a_real_engine", "status", "quit"])
+def test_car_command_rejects_unknown_key_without_crashing(monkeypatch, capsys):
+    _run_cli(monkeypatch, ["car not_a_real_car", "status", "quit"])
     out = capsys.readouterr().out
-    assert "unknown engine choice" in out
-    # Still alive and on the default engine afterward.
+    assert "unknown car choice" in out
+    # Still alive and on the default car afterward.
     assert "EA888" in out
 
 
-def test_turbos_command_lists_current_engines_choices(monkeypatch, capsys):
+def test_turbos_command_lists_current_cars_choices(monkeypatch, capsys):
     _run_cli(monkeypatch, ["turbos", "quit"])
     out = capsys.readouterr().out
     session = DynoSession()
@@ -57,18 +57,18 @@ def test_turbos_command_lists_current_engines_choices(monkeypatch, capsys):
         assert name in out
 
 
-def test_turbo_command_switches_turbo_on_same_engine(monkeypatch, capsys):
+def test_turbo_command_switches_turbo_on_same_car(monkeypatch, capsys):
     _run_cli(monkeypatch, ["turbo is38", "status", "quit"])
     out = capsys.readouterr().out
     assert "turbo: IHI IS38" in out
-    assert "EA888" in out  # still the same engine
+    assert "EA888" in out  # still the same car/engine
 
 
 def test_turbo_command_rejects_unknown_key_without_crashing(monkeypatch, capsys):
     _run_cli(monkeypatch, ["turbo not_a_real_turbo", "status", "quit"])
     out = capsys.readouterr().out
     assert "unknown turbo choice" in out
-    assert "EA888" in out  # still alive, still on the default engine
+    assert "EA888" in out  # still alive, still on the default car
 
 
 def test_throttle_and_step_advance_the_session(monkeypatch, capsys):

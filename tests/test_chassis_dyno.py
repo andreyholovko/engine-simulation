@@ -80,14 +80,14 @@ def test_shift_up_and_down_change_gear_in_chassis_mode():
     assert session.current_gear == 1
 
 
-def test_select_engine_preserves_chassis_mode():
+def test_select_car_preserves_chassis_mode():
     session = DynoSession()
     session.select_dyno_mode("chassis")
     session.shift_up()
-    session.select_engine("b58_340i")
+    session.select_car("f30_340i")
     assert session.dyno_mode == "chassis"
     assert isinstance(session.loop, ChassisDynoLoop)
-    # select_engine() rebuilds the drivetrain -- a fresh session, back to
+    # select_car() rebuilds the drivetrain -- a fresh session, back to
     # neutral, same reset-on-swap convention as every other axis.
     assert session.current_gear == 0
 
@@ -262,7 +262,7 @@ def test_switching_engine_preserves_automatic_transmission_choice():
     session = DynoSession()
     session.select_dyno_mode("chassis")
     session.select_transmission("auto_6speed")
-    session.select_engine("b58_340i")
+    session.select_car("f30_340i")
     assert isinstance(session.drivetrain, AutomaticDrivetrain)
     assert session.current_gear == 1
 
@@ -514,7 +514,7 @@ def test_downshift_under_load_lands_close_to_the_new_ratios_implied_rpm():
 
 
 def test_switching_engine_mid_shift_resets_shift_state_cleanly():
-    """select_engine()/select_tire()/select_dyno_mode() all build a brand
+    """select_car()/select_tire()/select_dyno_mode() all build a brand
     new Drivetrain -- confirm that actually clears an in-progress shift
     rather than leaving a stale partial clutch engagement lying around."""
     session = DynoSession()
@@ -522,7 +522,7 @@ def test_switching_engine_mid_shift_resets_shift_state_cleanly():
     session.shift_up()
     assert session.drivetrain.is_shifting
 
-    session.select_engine("b58_340i")
+    session.select_car("f30_340i")
     assert not session.drivetrain.is_shifting
     assert session.drivetrain.clutch.engagement == pytest.approx(1.0)
     assert session.current_gear == 0

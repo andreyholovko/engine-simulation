@@ -139,6 +139,22 @@ class TurboSpec:
 
 
 @dataclass(frozen=True)
+class CarSpec:
+    """A specific, real car -- what DynoSession.select_car()/
+    select_car_by_index() actually swap (see presets.CAR_CHOICES). Bundles
+    the engine that powers it with the turbo it ships stock: picking "a
+    car" picks both at once, the way rolling a specific car onto a dyno or
+    up to a drag strip actually works -- nobody selects "an engine" in the
+    abstract and only then discovers what it's bolted into. Swapping just
+    the turbo afterward, same car, same engine, is the separate axis
+    TURBO_CHOICES_BY_CAR covers (DynoSession.select_turbo())."""
+
+    name: str
+    engine_spec: EngineSpec
+    turbo_spec: TurboSpec
+
+
+@dataclass(frozen=True)
 class TireCompound:
     """A tire's rubber, independent of its size. peak_mu/sliding_mu are
     longitudinal friction coefficients (force = mu * normal load), the same

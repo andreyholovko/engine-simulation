@@ -39,12 +39,12 @@ Not yet published to a package index — vendor the `engine_sim/` directory
 
 ```python
 from engine_sim import DynoSession
-from engine_sim.presets import ENGINE_CHOICES
+from engine_sim.presets import CAR_CHOICES
 
-print(list(ENGINE_CHOICES))         # available engine keys
+print(list(CAR_CHOICES))            # available car keys
 
 session = DynoSession()
-session.select_engine("b58_340i")   # or any key from ENGINE_CHOICES
+session.select_car("f30_340i")      # or any key from CAR_CHOICES
 session.set_afr_override(None)      # let the ECU control AFR ("auto")
 session.start_power_pull()
 
@@ -88,13 +88,14 @@ is sized the way it is):
 | **BMW B58B30** (340i) | 320hp/238.7kW @ 5500-6500rpm, 447Nm flat 1380-5000rpm | 446.1Nm @ 2052rpm, 235.8kW @ 5352rpm |
 | **GM LS2** (Corvette C6, naturally aspirated) | 400hp/298.3kW @ 6000rpm, 542.4Nm @ 4400rpm | 539.0Nm @ 4206rpm, 309.6kW @ 5670rpm |
 
-**Selecting an engine/turbo:** `ENGINE_CHOICES` lists `"ea888_gen3_is20"`
-(default), `"b58_340i"`, `"ls2_na"` — each paired with its own stock turbo
-via `DynoSession.select_engine(key)`. `TURBO_CHOICES_BY_ENGINE` lists
-upgrade paths per engine (e.g. EA888's stock IS20 → IS38 → aftermarket
-big-frame hybrid), swappable independently via `DynoSession.select_turbo(key)`
-without changing the engine. `presets/__init__.py`'s own docstrings say which
-numbers are real/documented versus representative of a category.
+**Selecting a car/turbo:** `CAR_CHOICES` lists `"mk7_gti"` (default, EA888),
+`"f30_340i"` (B58), `"c6_corvette"` (LS2) — each `CarSpec` pairs an engine
+with its own stock turbo, selected as one unit via
+`DynoSession.select_car(key)`. `TURBO_CHOICES_BY_CAR` lists upgrade paths per
+car (e.g. the GTI's stock IS20 → IS38 → aftermarket big-frame hybrid),
+swappable independently via `DynoSession.select_turbo(key)` without changing
+the car. `presets/__init__.py`'s own docstrings say which numbers are
+real/documented versus representative of a category.
 
 ## Adding a new engine
 
@@ -135,29 +136,29 @@ New engines are pure data — no simulation code changes required.
    `max_boost_bar`, and `spool_midpoint_rpm` are the required fields), or use
    `TURBO_NONE` if the engine is naturally aspirated.
 
-4. **Make it selectable** by adding one entry to `ENGINE_CHOICES` in
+4. **Make it selectable** by adding a car for it to `CAR_CHOICES` in
    `engine_sim/presets/__init__.py`:
 
    ```python
-   "my_engine": (MY_ENGINE, MY_TURBO, "Display Name"),
+   "my_car": CarSpec(name="Display Name", engine_spec=MY_ENGINE, turbo_spec=MY_TURBO),
    ```
 
    and, if you want turbo swaps available for it, an entry in
-   `TURBO_CHOICES_BY_ENGINE["my_engine"]` (index 0 should match whatever
-   turbo `ENGINE_CHOICES` paired it with).
+   `TURBO_CHOICES_BY_CAR["my_car"]` (index 0 should match whatever turbo
+   `CAR_CHOICES` paired it with).
 
-5. **Validate it before trusting it.** Don't add an engine to
-   `ENGINE_CHOICES` until its simulated peak torque/power/RPM have been
+5. **Validate it before trusting it.** Don't add a car to
+   `CAR_CHOICES` until its simulated peak torque/power/RPM have been
    checked against a real published dyno figure, the way
    `tests/test_ea888_validation.py` / `test_b58_validation.py` /
    `test_ls2_validation.py` do, with a documented, justified tolerance.
    `EA888_GEN3B_IS38` (`presets/engines/ea888_gen3b_is38.py`) is a real
-   example of a preset left *out* of `ENGINE_CHOICES` for exactly this
+   example of an engine preset left *out* of `CAR_CHOICES` for exactly this
    reason — it exists for variety but was never validated.
 
 6. **Godot UI only:** add the matching label to `godot/scripts/dyno_ui.gd`'s
-   hardcoded `ENGINE_LABELS` list, in the same order as `ENGINE_CHOICES`. It's
-   intentionally not read from the live `engine_choices` string property —
+   hardcoded `CAR_LABELS` list, in the same order as `CAR_CHOICES`. It's
+   intentionally not read from the live `car_choices` string property —
    py4godot string-typed properties aren't reliable across the Python/GDScript
    boundary (see `dyno_controller.py`).
 
@@ -171,10 +172,10 @@ No Godot required — an interactive terminal dyno against the exact same
 ```
 
 ```
-dyno> engines            # list selectable engines
-dyno> engine b58_340i    # switch engine (and its stock turbo) mid-session
-dyno> turbos             # list turbo choices for the CURRENT engine
-dyno> turbo b58tu        # swap turbos on the SAME engine -- different curve
+dyno> cars               # list selectable cars
+dyno> car f30_340i       # switch car (and its stock turbo) mid-session
+dyno> turbos             # list turbo choices for the CURRENT car
+dyno> turbo b58tu        # swap turbos on the SAME car -- different curve
 dyno> throttle 100
 dyno> step 3             # advance 3s at current throttle, free-play mode
 dyno> afr 11.5           # override target AFR (or "afr auto" to release it)

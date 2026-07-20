@@ -35,7 +35,7 @@ class dyno_controller(Node):
 	data bus -- this drives the dyno's live readout, not a display-only mock.
 	Inputs (set from the UI): afr_override, boost_target_percent,
 	octane_override, throttle_percent, and the start_power_pull()/
-	stop_power_pull()/select_engine_by_index()/select_turbo_by_index()/
+	stop_power_pull()/select_car_by_index()/select_turbo_by_index()/
 	select_dyno_mode_chassis()/select_tire_by_index()/shift_up()/shift_down()
 	methods. Outputs (read by the UI every frame): everything else,
 	including power_pull_active, which mirrors the session's own state --
@@ -87,45 +87,47 @@ class dyno_controller(Node):
 	wheel_power_kw: float = 0.0
 
 	# --- tire picker: TIRE_CHOICES, addressed by index (int) for the same
-	# str-across-py4godot-boundary reasoning as the engine/turbo pickers. ---
+	# str-across-py4godot-boundary reasoning as the car/turbo pickers. ---
 	tire_count: int = 0
-	tire_name: str = ""  # last-resort/debug only, same as engine_name
+	tire_name: str = ""  # last-resort/debug only, same as car_name
 	tire_choices: str = ""  # ditto
 
 	# --- transmission picker: TRANSMISSION_CHOICES (manual vs automatic),
 	# same index-addressed reasoning as the tire picker above. ---
 	transmission_count: int = 0
-	transmission_name: str = ""  # last-resort/debug only, same as engine_name
+	transmission_name: str = ""  # last-resort/debug only, same as car_name
 	transmission_choices: str = ""  # ditto
 	is_automatic_transmission: bool = False  # true once an AutomaticDrivetrain is live -- UI disables shift buttons
 
-	# --- engine picker: ENGINE_CHOICES, addressed by index (int) rather than
-	# key (str) -- py4godot's own examples only ever show int/float/bool/
+	# --- car picker: CAR_CHOICES, addressed by index (int) rather than key
+	# (str) -- py4godot's own examples only ever show int/float/bool/
 	# Vector3 properties, never str, so selection goes through
-	# select_engine_by_index() to stay on confirmed-safe types.
-	engine_count: int = 0
-	engine_name: str = ""  # last-resort/debug only, nothing load-bearing depends on this str
-	engine_choices: str = ""  # ditto
+	# select_car_by_index() to stay on confirmed-safe types. Picking a car
+	# picks its engine (and stock turbo) at once -- see CarSpec/CAR_CHOICES.
+	car_count: int = 0
+	car_name: str = ""  # last-resort/debug only, nothing load-bearing depends on this str
+	car_choices: str = ""  # ditto
 
-	# --- turbo picker: TURBO_CHOICES_BY_ENGINE for the CURRENT engine, same
-	# index-addressed reasoning as the engine picker above. The list itself
-	# changes whenever the engine does (a different engine has different
-	# turbo options), which is why turbo_choices/turbo_count are refreshed
-	# from _refresh_engine_facts() too, not just on their own.
+	# --- turbo picker: TURBO_CHOICES_BY_CAR for the CURRENT car, same
+	# index-addressed reasoning as the car picker above. The list itself
+	# changes whenever the car does (a different car has different turbo
+	# options), which is why turbo_choices/turbo_count are refreshed from
+	# _refresh_engine_facts() too, not just on their own.
 	turbo_count: int = 0
-	turbo_name: str = ""  # last-resort/debug only, same as engine_name
+	turbo_name: str = ""  # last-resort/debug only, same as car_name
 	turbo_choices: str = ""  # ditto
 
-	# --- engine/turbo facts, refreshed whenever the engine changes -- for
+	# --- engine/turbo facts, refreshed whenever the car changes -- for
 	# audio synthesis (dyno_audio.gd). Kept as plain int/float, same reasoning
-	# as engine_count above.
+	# as car_count above.
 	cylinders: int = 4
 	displacement_l: float = 2.0
 	max_boost_bar: float = 1.3
 	firing_order_length: int = 4
-	# Bumped every time the engine changes -- the cheap int-only way for
-	# dyno_audio.gd to know its cached per-cylinder signature is stale,
-	# without needing a str/object identity check across the boundary.
+	# Bumped every time the car (and so its engine) changes -- the cheap
+	# int-only way for dyno_audio.gd to know its cached per-cylinder
+	# signature is stale, without needing a str/object identity check
+	# across the boundary.
 	engine_generation: int = 0
 
 	power_pull_finished = signal([])
@@ -137,9 +139,9 @@ class dyno_controller(Node):
 	def _ready(self) -> None:
 		self._session = DynoSession()
 		self.rpm = self._session.loop.rpm
-		self.engine_count = len(DynoSession.list_engine_choices())
-		self.engine_choices = "|".join(
-			f"{key}:{name}" for key, name in DynoSession.list_engine_choices()
+		self.car_count = len(DynoSession.list_car_choices())
+		self.car_choices = "|".join(
+			f"{key}:{name}" for key, name in DynoSession.list_car_choices()
 		)
 		self.tire_count = len(DynoSession.list_tire_choices())
 		self.tire_choices = "|".join(
@@ -154,8 +156,9 @@ class dyno_controller(Node):
 		self._refresh_engine_facts()
 
 	def _refresh_engine_facts(self) -> None:
+		car_name = next(name for key, name in DynoSession.list_car_choices() if key == self._session.car_key)
+		self.car_name = car_name
 		spec = self._session.ecu.engine.spec
-		self.engine_name = spec.name
 		self.cylinders = spec.cylinders
 		self.displacement_l = spec.displacement_l
 		self.firing_order_length = len(spec.firing_order_resolved)
@@ -186,16 +189,16 @@ class dyno_controller(Node):
 		firing_order = self._session.ecu.engine.spec.firing_order_resolved
 		return firing_order[index]
 
-	def select_engine_by_index(self, index: int) -> None:
+	def select_car_by_index(self, index: int) -> None:
 		if self._session is None:
 			return
-		self._session.select_engine_by_index(index)
+		self._session.select_car_by_index(index)
 		self._refresh_engine_facts()
 
-	def select_engine(self, key: str) -> None:
+	def select_car(self, key: str) -> None:
 		if self._session is None:
 			return
-		self._session.select_engine(key)
+		self._session.select_car(key)
 		self._refresh_engine_facts()
 
 	def select_turbo_by_index(self, index: int) -> None:

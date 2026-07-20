@@ -5,7 +5,7 @@ flat from 1380-5000rpm, redline 7000rpm, single twin-scroll turbo.
 Same mean-value model and same tolerance philosophy as
 tests/test_ea888_validation.py -- see that file for why tolerances are sized
 the way they are. This is the second independently-validated preset, so
-these tests also double as a check that ENGINE_CHOICES' selection mechanism
+these tests also double as a check that CAR_CHOICES' selection mechanism
 actually produces a working, correctly-tuned engine, not just the default.
 
 Uses the `b58_loop` fixture (tests/conftest.py).

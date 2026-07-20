@@ -2,7 +2,7 @@
 upgrades for an IS20-equipped car (the "IS38 swap"/"IS38 hybrid" is a
 well-known path in the VW/Audi tuning community -- physically larger
 compressor and turbine than the IS20, same basic single-scroll I4 layout).
-Selectable in ENGINE_SIM's TURBO_CHOICES_BY_ENGINE for EA888_GEN3_IS20 (see
+Selectable in ENGINE_SIM's TURBO_CHOICES_BY_CAR for EA888_GEN3_IS20 (see
 presets/__init__.py) -- fitting the "wrong" (bigger, later-spooling) turbo
 on the same engine spec and watching torque/power/spool timing all shift is
 the point.

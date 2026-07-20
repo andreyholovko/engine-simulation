@@ -17,7 +17,7 @@ from engine_sim.presets import (
     TURBO_IS38,
     TURBO_LS2_TWIN,
     TURBO_NONE,
-    TURBO_CHOICES_BY_ENGINE,
+    TURBO_CHOICES_BY_CAR,
 )
 from engine_sim.specs import CamSpec, EngineSpec, TurboSpec
 from engine_sim.units import BAR_TO_PA
@@ -597,7 +597,7 @@ def test_bore_stroke_and_cam_lift_overlap_are_descriptive_only():
     assert varied.ve == pytest.approx(baseline.ve)
 
 
-# --- Turbo variety (TURBO_CHOICES_BY_ENGINE) -----------------------------
+# --- Turbo variety (TURBO_CHOICES_BY_CAR) -----------------------------
 
 def test_is38_max_boost_is_realistic_not_the_old_placeholder():
     """Regression guard: TURBO_IS38 used to carry a decorative placeholder
@@ -608,12 +608,12 @@ def test_is38_max_boost_is_realistic_not_the_old_placeholder():
     assert 1.0 < TURBO_IS38.max_boost_bar < 2.5
 
 
-@pytest.mark.parametrize("engine_key", ["ea888_gen3_is20", "b58_340i", "ls2_na"])
-def test_every_turbo_choice_has_a_unique_max_boost(engine_key):
+@pytest.mark.parametrize("car_key", ["mk7_gti", "f30_340i", "c6_corvette"])
+def test_every_turbo_choice_has_a_unique_max_boost(car_key):
     """Sanity check on the data itself: if two options in the same engine's
     list carried the same max_boost_bar, they wouldn't actually be
     offering a meaningfully different choice."""
-    specs = [spec for _, spec, _ in TURBO_CHOICES_BY_ENGINE[engine_key]]
+    specs = [spec for _, spec, _ in TURBO_CHOICES_BY_CAR[car_key]]
     boosts = [s.max_boost_bar for s in specs]
     assert len(boosts) == len(set(boosts))
 
@@ -644,8 +644,8 @@ def test_bigger_turbo_options_spool_later_than_stock():
     max_boost_bar option should spool_midpoint_rpm later than the stock
     unit -- physically larger turbines take more exhaust energy/rpm to
     spin up, the same trait TURBO_IS38's own docstring describes."""
-    for engine_key in ("ea888_gen3_is20", "b58_340i", "ls2_na"):
-        choices = TURBO_CHOICES_BY_ENGINE[engine_key]
+    for car_key in ("mk7_gti", "f30_340i", "c6_corvette"):
+        choices = TURBO_CHOICES_BY_CAR[car_key]
         stock_spec = choices[0][1]
         for _, spec, name in choices[1:]:
             assert spec.max_boost_bar > stock_spec.max_boost_bar, name

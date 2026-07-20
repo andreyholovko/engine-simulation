@@ -49,7 +49,7 @@ SPLIT_NOT_REACHED = -1.0
 class drag_controller(Node):
 	"""Inputs: throttle_percent (0-100, driven by the UI's throttle slider --
 	ignored by the sim itself before the light goes green or after the
-	finish line, see _physics_process()), select_engine_by_index()/
+	finish line, see _physics_process()), select_car_by_index()/
 	select_turbo_by_index() (same index-addressed convention as
 	dyno_controller.py). Outputs: everything else, updated every physics
 	tick; race_state/countdown_s/race_time_s/distance_m/trap_speed_kmh/
@@ -103,8 +103,8 @@ class drag_controller(Node):
 		super().__init__()
 		self._session: Optional[DynoSession] = None
 		self._elapsed_since_ready_s = 0.0
-		self._engine_key = "ea888_gen3_is20"
-		self._turbo_index = 0  # index into TURBO_CHOICES_BY_ENGINE[_engine_key]; 0 = stock
+		self._car_key = "mk7_gti"
+		self._turbo_index = 0  # index into TURBO_CHOICES_BY_CAR[_car_key]; 0 = stock
 
 	def _ready(self) -> None:
 		self._session = DynoSession()
@@ -124,12 +124,12 @@ class drag_controller(Node):
 
 	def _arm_countdown(self) -> None:
 		"""Resets every piece of race-run state and re-arms the 3-second
-		light sequence, WITHOUT touching the engine/turbo choice -- the
-		shared tail end of both restart_race() (explicit Restart button)
-		and select_engine_by_index()/select_turbo_by_index() (an engine/
-		turbo swap always voids whatever run was in progress, same as
-		DynoSession.select_engine()/select_turbo() already abort an
-		in-progress dyno pull)."""
+		light sequence, WITHOUT touching the car/turbo choice -- the shared
+		tail end of both restart_race() (explicit Restart button) and
+		select_car_by_index()/select_turbo_by_index() (a car/turbo swap
+		always voids whatever run was in progress, same as DynoSession.
+		select_car()/select_turbo() already abort an in-progress dyno
+		pull)."""
 		self._elapsed_since_ready_s = 0.0
 		self.countdown_s = COUNTDOWN_S
 		self.race_time_s = 0.0
@@ -145,46 +145,46 @@ class drag_controller(Node):
 		callable from a Restart button once a run has finished. A full fresh
 		DynoSession (not just _arm_countdown()) so a stuck/unusual
 		drivetrain state from the previous run can never carry over. Restores
-		BOTH the current engine and turbo choice -- select_engine() alone
-		would silently revert to that engine's stock turbo, quietly
-		discarding a turbo swap the driver made before hitting Restart."""
+		BOTH the current car and turbo choice -- select_car() alone would
+		silently revert to that car's stock turbo, quietly discarding a
+		turbo swap the driver made before hitting Restart."""
 		self._session = DynoSession()
 		self._session.select_dyno_mode("chassis")
 		self._session.select_transmission("auto_6speed")
-		self._session.select_engine(self._engine_key)
+		self._session.select_car(self._car_key)
 		if self._turbo_index != 0:
 			self._session.select_turbo_by_index(self._turbo_index)
 		self._refresh_engine_facts()
 		self._arm_countdown()
 
-	def select_engine_by_index(self, index: int) -> None:
+	def select_car_by_index(self, index: int) -> None:
 		"""Same index-addressed convention as dyno_controller.py's own
 		method of this name (str properties aren't safe across the
-		py4godot boundary -- see that file). Swapping engines always voids
-		an in-progress run (DynoSession.select_engine() already resets the
+		py4godot boundary -- see that file). Swapping cars always voids an
+		in-progress run (DynoSession.select_car() already resets the
 		drivetrain to a fresh gear-1/stationary state internally), so this
 		re-arms the countdown too rather than leaving the race mid-run
 		against a car that just silently changed engines under it. Always
-		resets to that engine's own stock turbo (DynoSession.select_engine()
-		does this internally too) -- a turbo choice from the previous engine
-		isn't necessarily valid, or even meaningful, on a different one."""
+		resets to that car's own stock turbo (DynoSession.select_car() does
+		this internally too) -- a turbo choice from the previous car isn't
+		necessarily valid, or even meaningful, on a different one."""
 		if self._session is None:
 			return
-		from engine_sim.presets import ENGINE_CHOICES
+		from engine_sim.presets import CAR_CHOICES
 
-		keys = list(ENGINE_CHOICES.keys())
+		keys = list(CAR_CHOICES.keys())
 		if not 0 <= index < len(keys):
 			return
-		self._engine_key = keys[index]
+		self._car_key = keys[index]
 		self._turbo_index = 0
-		self._session.select_engine(self._engine_key)
+		self._session.select_car(self._car_key)
 		self._refresh_engine_facts()
 		self._arm_countdown()
 
 	def select_turbo_by_index(self, index: int) -> None:
-		"""Same reasoning as select_engine_by_index() -- turbo choices are
-		per-engine (see TURBO_CHOICES_BY_ENGINE), addressed against
-		whichever engine is currently selected."""
+		"""Same reasoning as select_car_by_index() -- turbo choices are
+		per-car (see TURBO_CHOICES_BY_CAR), addressed against whichever car
+		is currently selected."""
 		if self._session is None:
 			return
 		self._turbo_index = index

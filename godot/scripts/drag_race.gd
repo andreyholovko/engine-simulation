@@ -41,16 +41,16 @@ const Layout = preload("res://scripts/drag_scene_layout.gd")
 const QUARTER_MILE_M := 402.336
 const SMOKE_SLIP_THRESHOLD := 0.18  # beyond the tire's peak-grip slip ratio -- see engine_sim.core.tire
 
-# Hardcoded, matching engine_sim/presets/__init__.py's ENGINE_CHOICES/
-# TURBO_CHOICES_BY_ENGINE order exactly -- same str-across-py4godot-boundary
+# Hardcoded, matching engine_sim/presets/__init__.py's CAR_CHOICES/
+# TURBO_CHOICES_BY_CAR order exactly -- same str-across-py4godot-boundary
 # reasoning as dyno_ui.gd's own copy of these same lists (see that file for
 # the full explanation). Keep in sync if either preset list changes.
-const ENGINE_LABELS := [
-	"VW/Audi EA888 Gen3 (MK7 GTI, IS20)",
-	"BMW B58B30 (340i)",
-	"GM LS2 (Corvette C6, NA)",
+const CAR_LABELS := [
+	"VW/Audi Mk7 GTI (EA888 Gen3, IS20)",
+	"BMW F30 340i (B58B30)",
+	"Chevrolet C6 Corvette (LS2, NA)",
 ]
-const TURBO_LABELS_BY_ENGINE := [
+const TURBO_LABELS_BY_CAR := [
 	["Stock IHI IS20", "IHI IS38 (hybrid swap)", "Aftermarket big-frame hybrid (TTE-class)"],
 	["Stock MHI single twin-scroll (340i)", "BMW B58TU (M340i/Supra factory upgrade)", "Aftermarket big single (Pure Stage 2-class)"],
 	["Naturally aspirated (stock)", "Twin-turbo kit (representative, stock-internals-safe)"],
@@ -92,8 +92,8 @@ const TILT_SMOOTHING_PER_S := 6.0
 @onready var result_time_label: Label = $UI/ResultsPanel/ResultTimeLabel
 @onready var result_trap_label: Label = $UI/ResultsPanel/ResultTrapLabel
 @onready var restart_button: Button = $UI/RestartButton
-@onready var engine_option: OptionButton = $UI/EngineRow/EngineOption
-@onready var turbo_option: OptionButton = $UI/EngineRow/TurboOption
+@onready var car_option: OptionButton = $UI/CarRow/CarOption
+@onready var turbo_option: OptionButton = $UI/CarRow/TurboOption
 
 var _prev_speed_mps := 0.0
 
@@ -102,20 +102,20 @@ func _ready() -> void:
 	controller.race_started.connect(_on_race_started)
 	controller.race_finished.connect(_on_race_finished)
 	results_panel.visible = false
-	_populate_engine_options()
+	_populate_car_options()
 	_populate_turbo_options(0)
 
 
-func _populate_engine_options() -> void:
-	for label in ENGINE_LABELS:
-		engine_option.add_item(label)
-	if engine_option.item_count > 0:
-		engine_option.select(0)
+func _populate_car_options() -> void:
+	for label in CAR_LABELS:
+		car_option.add_item(label)
+	if car_option.item_count > 0:
+		car_option.select(0)
 
 
-func _populate_turbo_options(engine_index: int) -> void:
+func _populate_turbo_options(car_index: int) -> void:
 	turbo_option.clear()
-	for label in TURBO_LABELS_BY_ENGINE[engine_index]:
+	for label in TURBO_LABELS_BY_CAR[car_index]:
 		turbo_option.add_item(label)
 	if turbo_option.item_count > 0:
 		turbo_option.select(0)
@@ -247,11 +247,11 @@ func _on_restart_pressed() -> void:
 	_reset_ui_for_new_run()
 
 
-func _on_engine_selected(index: int) -> void:
-	controller.select_engine_by_index(index)
-	# A different engine has a different turbo lineup entirely (same
-	# reasoning as dyno_ui.gd's _on_engine_selected()) -- repopulate rather
-	# than leave the previous engine's options showing. select_engine_by_
+func _on_car_selected(index: int) -> void:
+	controller.select_car_by_index(index)
+	# A different car has a different turbo lineup entirely (same
+	# reasoning as dyno_ui.gd's _on_car_selected()) -- repopulate rather
+	# than leave the previous car's options showing. select_car_by_
 	# index() already re-arms the countdown on the controller side (see
 	# drag_controller.py), so only the UI itself needs resetting here --
 	# NOT another controller.restart_race() call, which would just rebuild
@@ -267,7 +267,7 @@ func _on_turbo_selected(index: int) -> void:
 
 func _reset_ui_for_new_run() -> void:
 	"""Shared by every path that (re)arms a fresh countdown -- the Restart
-	button and an engine/turbo swap -- so the results panel and throttle
+	button and a car/turbo swap -- so the results panel and throttle
 	slider always land back in the same "ready for the light" state."""
 	results_panel.visible = false
 	throttle_slider.value = 0.0

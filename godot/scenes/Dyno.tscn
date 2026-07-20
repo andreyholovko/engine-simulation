@@ -35,17 +35,17 @@ layout_mode = 2
 [node name="SetupLabel" type="Label" parent="Layout/SetupSection"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "Setup (Engine + Drivetrain)"
+text = "Setup (Car + Drivetrain)"
 
-[node name="EngineRow" type="HBoxContainer" parent="Layout/SetupSection"]
+[node name="CarRow" type="HBoxContainer" parent="Layout/SetupSection"]
 layout_mode = 2
 
-[node name="EngineLabel" type="Label" parent="Layout/SetupSection/EngineRow"]
+[node name="CarLabel" type="Label" parent="Layout/SetupSection/CarRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 0)
-text = "Engine"
+text = "Car"
 
-[node name="EngineOption" type="OptionButton" parent="Layout/SetupSection/EngineRow"]
+[node name="CarOption" type="OptionButton" parent="Layout/SetupSection/CarRow"]
 custom_minimum_size = Vector2(320, 0)
 layout_mode = 2
 
@@ -331,7 +331,7 @@ layout_mode = 2
 size_flags_vertical = 3
 script = ExtResource("3")
 
-[connection signal="item_selected" from="Layout/SetupSection/EngineRow/EngineOption" to="." method="_on_engine_selected"]
+[connection signal="item_selected" from="Layout/SetupSection/CarRow/CarOption" to="." method="_on_car_selected"]
 [connection signal="item_selected" from="Layout/SetupSection/TurboRow/TurboOption" to="." method="_on_turbo_selected"]
 [connection signal="toggled" from="Layout/SetupSection/ModeRow/ModeCheckBox" to="." method="_on_mode_toggled"]
 [connection signal="item_selected" from="Layout/SetupSection/ModeRow/TireOption" to="." method="_on_tire_selected"]

@@ -5,7 +5,7 @@ extends Control
 ## numbers between widgets and that node.
 
 @onready var controller = $DynoController
-@onready var engine_option: OptionButton = $Layout/SetupSection/EngineRow/EngineOption
+@onready var car_option: OptionButton = $Layout/SetupSection/CarRow/CarOption
 @onready var turbo_option: OptionButton = $Layout/SetupSection/TurboRow/TurboOption
 @onready var boost_slider: HSlider = $Layout/TuningSection/BoostRow/BoostSlider
 @onready var boost_target_label: Label = $Layout/TuningSection/BoostRow/BoostTargetLabel
@@ -41,7 +41,7 @@ extends Control
 @onready var graph = $Layout/DynoGraph
 
 # Hardcoded, matching engine_sim/presets/tires.py's TIRE_CHOICES order
-# exactly -- same str-across-py4godot-boundary reasoning as ENGINE_LABELS.
+# exactly -- same str-across-py4godot-boundary reasoning as CAR_LABELS.
 const TIRE_LABELS := [
 	"225/45R17 Street All-Season",
 	"245/40R18 Sport Summer",
@@ -57,26 +57,26 @@ const TRANSMISSION_LABELS := [
 ]
 
 
-# Hardcoded, matching engine_sim/presets/__init__.py's ENGINE_CHOICES order
-# exactly -- deliberately NOT read from controller.engine_choices (a `str`
+# Hardcoded, matching engine_sim/presets/__init__.py's CAR_CHOICES order
+# exactly -- deliberately NOT read from controller.car_choices (a `str`
 # property), because py4godot's own examples only ever show int/float/bool/
 # Vector3 properties, never str, and that was confirmed to be the actual
-# cause of the engine picker not working at all: an empty/broken string
-# meant an empty dropdown. Selection is driven by plain index (int), a type
-# already confirmed working (cylinders, rpm, etc. all display correctly).
-# Keep this list in sync with ENGINE_CHOICES if you add a third engine.
-const ENGINE_LABELS := [
-	"VW/Audi EA888 Gen3 (MK7 GTI, IS20)",
-	"BMW B58B30 (340i)",
-	"GM LS2 (Corvette C6, NA)",
+# cause of the picker not working at all: an empty/broken string meant an
+# empty dropdown. Selection is driven by plain index (int), a type already
+# confirmed working (cylinders, rpm, etc. all display correctly). Keep this
+# list in sync with CAR_CHOICES if you add a fourth car.
+const CAR_LABELS := [
+	"VW/Audi Mk7 GTI (EA888 Gen3, IS20)",
+	"BMW F30 340i (B58B30)",
+	"Chevrolet C6 Corvette (LS2, NA)",
 ]
 
-# Hardcoded per engine, matching engine_sim/presets/__init__.py's
-# TURBO_CHOICES_BY_ENGINE order exactly (index 0 is always that engine's own
+# Hardcoded per car, matching engine_sim/presets/__init__.py's
+# TURBO_CHOICES_BY_CAR order exactly (index 0 is always that car's own
 # stock/validated turbo) -- same "not read from a `str` property" reasoning
-# as ENGINE_LABELS above. Outer index lines up with ENGINE_LABELS' order.
-# Keep in sync with TURBO_CHOICES_BY_ENGINE if you add/reorder a turbo.
-const TURBO_LABELS_BY_ENGINE := [
+# as CAR_LABELS above. Outer index lines up with CAR_LABELS' order. Keep in
+# sync with TURBO_CHOICES_BY_CAR if you add/reorder a turbo.
+const TURBO_LABELS_BY_CAR := [
 	["Stock IHI IS20", "IHI IS38 (hybrid swap)", "Aftermarket big-frame hybrid (TTE-class)"],
 	["Stock MHI single twin-scroll (340i)", "BMW B58TU (M340i/Supra factory upgrade)", "Aftermarket big single (Pure Stage 2-class)"],
 	["Naturally aspirated (stock)", "Twin-turbo kit (representative, stock-internals-safe)"],
@@ -85,7 +85,7 @@ const TURBO_LABELS_BY_ENGINE := [
 
 func _ready() -> void:
 	controller.power_pull_finished.connect(_on_power_pull_finished)
-	_populate_engine_options()
+	_populate_car_options()
 	_populate_turbo_options(0)
 	_populate_tire_options()
 	_populate_transmission_options()
@@ -94,16 +94,16 @@ func _ready() -> void:
 	finish_pull_button.disabled = true
 
 
-func _populate_engine_options() -> void:
-	for label in ENGINE_LABELS:
-		engine_option.add_item(label)
-	if engine_option.item_count > 0:
-		engine_option.select(0)
+func _populate_car_options() -> void:
+	for label in CAR_LABELS:
+		car_option.add_item(label)
+	if car_option.item_count > 0:
+		car_option.select(0)
 
 
-func _populate_turbo_options(engine_index: int) -> void:
+func _populate_turbo_options(car_index: int) -> void:
 	turbo_option.clear()
-	for label in TURBO_LABELS_BY_ENGINE[engine_index]:
+	for label in TURBO_LABELS_BY_CAR[car_index]:
 		turbo_option.add_item(label)
 	if turbo_option.item_count > 0:
 		turbo_option.select(0)
@@ -139,7 +139,7 @@ func _update_shift_buttons_enabled() -> void:
 	# Variant to GDScript's static analysis, so `:=` type inference on an
 	# expression built from it fails to compile ("Cannot infer the type").
 	# Explicit `: bool` sidesteps that; this is exactly the bug that broke
-	# this whole script (and so every handler in it, including the engine/
+	# this whole script (and so every handler in it, including the car/
 	# turbo pickers) until it was fixed.
 	var is_automatic: bool = controller.is_automatic_transmission
 	shift_up_button.disabled = is_automatic
@@ -174,14 +174,14 @@ func _process(_delta: float) -> void:
 		graph.add_point(controller.rpm, controller.wheel_torque_nm, controller.wheel_power_kw)
 
 
-func _on_engine_selected(index: int) -> void:
-	controller.select_engine_by_index(index)
-	# A different engine has a different turbo lineup entirely (DynoSession.
-	# select_engine() already resets to that engine's own stock turbo) --
-	# repopulate rather than leave the previous engine's options showing.
+func _on_car_selected(index: int) -> void:
+	controller.select_car_by_index(index)
+	# A different car has a different turbo lineup entirely (DynoSession.
+	# select_car() already resets to that car's own stock turbo) --
+	# repopulate rather than leave the previous car's options showing.
 	_populate_turbo_options(index)
-	# Switching engines always aborts any in-progress pull (DynoSession.
-	# select_engine() resets it internally) -- but that happens synchronously
+	# Switching cars always aborts any in-progress pull (DynoSession.
+	# select_car() resets it internally) -- but that happens synchronously
 	# here, before the next _physics_process runs, so the usual True->False
 	# transition _physics_process watches for to fire power_pull_finished
 	# never happens (is_power_pull_active is already False by the time it
@@ -192,9 +192,9 @@ func _on_engine_selected(index: int) -> void:
 
 func _on_turbo_selected(index: int) -> void:
 	controller.select_turbo_by_index(index)
-	# Same reasoning as _on_engine_selected() above -- select_turbo() aborts
+	# Same reasoning as _on_car_selected() above -- select_turbo() aborts
 	# an in-progress pull too, and the graph/button need resetting the same
-	# way (the engine itself, and so the turbo lineup, doesn't change here).
+	# way (the car's engine, and so the turbo lineup, doesn't change here).
 	_reset_pull_ui()
 
 
@@ -246,7 +246,7 @@ func _on_finish_power_pull_pressed() -> void:
 	# waiting for the controller's signal) means is_power_pull_active is
 	# already False by the time _physics_process next checks it, so that
 	# True->False edge never fires power_pull_finished -- same reasoning as
-	# _on_engine_selected()'s direct reset, reused here via _reset_pull_ui().
+	# _on_car_selected()'s direct reset, reused here via _reset_pull_ui().
 	controller.stop_power_pull()
 	_reset_pull_ui()
 
@@ -262,7 +262,7 @@ func _on_clear_graph_pressed() -> void:
 
 func _reset_pull_ui() -> void:
 	"""Shared by every path that ends/aborts a pull -- the rev limiter
-	finishing it, a manual Finish press, or switching engine/turbo/mode/tire/
+	finishing it, a manual Finish press, or switching car/turbo/mode/tire/
 	transmission mid-pull -- so the Start/Finish buttons and throttle slider
 	always land back in the same "ready for a fresh pull" state regardless
 	of which of those actually happened."""
@@ -278,7 +278,7 @@ func _on_mode_toggled(enabled: bool) -> void:
 	controller.select_dyno_mode_chassis(enabled)
 	# Chassis vs crank mode aren't comparable on the same torque/power graph
 	# (a chassis pull is driven, geared and slip-limited, not a paced crank
-	# sweep) -- clear it same as an engine/turbo swap does.
+	# sweep) -- clear it same as a car/turbo swap does.
 	_reset_pull_ui()
 	_update_gear_label()
 	_update_shift_buttons_enabled()

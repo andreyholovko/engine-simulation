@@ -7,11 +7,10 @@ display fields. Do that once, here, so every consumer is provably looking at
 the same simulation instead of three copies that happen to agree today and
 can silently drift tomorrow.
 
-`DynoSession()` with no arguments is *the* canonical dyno: EA888 Gen3 (IS20),
-the preset validated against VW's own published figures. Pass a different
-engine_spec/turbo_spec only for a deliberately different configuration --
-everyone who just wants "the dyno" should call `DynoSession()` and get
-identical behavior.
+`DynoSession()` with no arguments is *the* canonical dyno: a Mk7 GTI (EA888
+Gen3, IS20), the preset validated against VW's own published figures. Pass a
+different car_key only for a deliberately different car -- everyone who just
+wants "the dyno" should call `DynoSession()` and get identical behavior.
 """
 
 from dataclasses import dataclass
@@ -30,14 +29,12 @@ from engine_sim.core import (
     Turbo,
 )
 from engine_sim.presets import (
+    CAR_CHOICES,
     CLUTCH_PERFORMANCE,
-    EA888_GEN3_IS20,
-    ENGINE_CHOICES,
     ROLLER_STANDARD,
     TIRE_CHOICES,
     TRANSMISSION_CHOICES,
-    TURBO_CHOICES_BY_ENGINE,
-    TURBO_IS20,
+    TURBO_CHOICES_BY_CAR,
 )
 from engine_sim.specs import AutomaticTransmissionSpec, EngineSpec, TurboSpec
 
@@ -90,11 +87,20 @@ class DynoSnapshot:
 class DynoSession:
     def __init__(
         self,
-        engine_spec: EngineSpec = EA888_GEN3_IS20,
-        turbo_spec: TurboSpec = TURBO_IS20,
         brake: Optional[DynoBrake] = None,
-        engine_key: str = "ea888_gen3_is20",
+        car_key: str = "mk7_gti",
     ):
+        """car_key selects both the engine and its stock turbo at once (see
+        presets.CAR_CHOICES) -- there's deliberately no separate engine_spec/
+        turbo_spec override here anymore: every real caller (CLI, Godot,
+        tests) only ever picked a *car*, never an engine spec in the
+        abstract, so carrying that extra pair of params was just a way for
+        them to silently drift out of sync with car_key with no caller
+        actually needing the flexibility."""
+        if car_key not in CAR_CHOICES:
+            raise ValueError(f"unknown car choice: {car_key!r}. Available: {sorted(CAR_CHOICES)}")
+        car = CAR_CHOICES[car_key]
+
         # dyno_mode/tire_key/transmission_key must exist before _build_loop()
         # is first called (it reads them to decide what kind of loop to
         # construct).
@@ -103,19 +109,19 @@ class DynoSession:
         self.transmission_key = "manual_6speed"
         self.drivetrain: Optional[Union[Drivetrain, AutomaticDrivetrain]] = None
 
-        self.loop = self._build_loop(engine_spec, turbo_spec, brake if brake is not None else DynoBrake())
+        self.loop = self._build_loop(car.engine_spec, car.turbo_spec, brake if brake is not None else DynoBrake())
         self._power_pull_active = False
         # True while off-throttle rpm is decelerating naturally toward idle
         # (see _drive()) rather than being actively PID-held there yet --
         # tracked so the PID's integral only resets once, at the moment it
         # actually takes over, not stale from whatever it was doing before.
         self._coasting = False
-        self.idle_rpm_target = engine_spec.idle_rpm
-        self.engine_key = engine_key
-        # Stock/default turbo for this engine by TURBO_CHOICES_BY_ENGINE
-        # convention (index 0) -- only meaningful when engine_key is an
-        # actual ENGINE_CHOICES key, same assumption the default args make.
-        turbo_choices = TURBO_CHOICES_BY_ENGINE.get(engine_key, [])
+        self.idle_rpm_target = car.engine_spec.idle_rpm
+        self.car_key = car_key
+        # Stock/default turbo for this car by TURBO_CHOICES_BY_CAR
+        # convention (index 0) -- always meaningful here since car_key is
+        # already validated above.
+        turbo_choices = TURBO_CHOICES_BY_CAR.get(car_key, [])
         self.turbo_key = turbo_choices[0][0] if turbo_choices else None
 
     def _build_loop(
@@ -155,68 +161,69 @@ class DynoSession:
         return self._power_pull_active
 
     @staticmethod
-    def list_engine_choices() -> list[tuple[str, str]]:
-        """[(key, display_name), ...] for every engine select_engine() accepts."""
-        return [(key, name) for key, (_, _, name) in ENGINE_CHOICES.items()]
+    def list_car_choices() -> list[tuple[str, str]]:
+        """[(key, display_name), ...] for every car select_car() accepts."""
+        return [(key, car.name) for key, car in CAR_CHOICES.items()]
 
-    def select_engine(self, key: str) -> None:
-        """Swap to a different engine+its stock turbo from ENGINE_CHOICES,
-        mid-session. Rebuilds Engine/Turbo/ECU (a different engine means
-        different specs driving them) but keeps the same DynoBrake -- the
-        dyno's own inertia/drag isn't a property of whichever engine happens
-        to be mounted. Always resets to that engine's own stock turbo (see
-        TURBO_CHOICES_BY_ENGINE) -- a turbo choice from the previous engine
-        isn't necessarily valid, or even meaningful, on a different one."""
-        if key not in ENGINE_CHOICES:
-            raise ValueError(f"unknown engine choice: {key!r}. Available: {sorted(ENGINE_CHOICES)}")
-        engine_spec, turbo_spec, _ = ENGINE_CHOICES[key]
-        self.loop = self._build_loop(engine_spec, turbo_spec, self.loop.brake)
+    def select_car(self, key: str) -> None:
+        """Swap to a different car (its engine + its stock turbo, see
+        CarSpec) from CAR_CHOICES, mid-session. Rebuilds Engine/Turbo/ECU (a
+        different car means a different engine spec driving them) but keeps
+        the same DynoBrake -- the dyno's own inertia/drag isn't a property
+        of whichever car happens to be mounted. Always resets to that car's
+        own stock turbo (see TURBO_CHOICES_BY_CAR) -- a turbo choice from
+        the previous car isn't necessarily valid, or even meaningful, on a
+        different one."""
+        if key not in CAR_CHOICES:
+            raise ValueError(f"unknown car choice: {key!r}. Available: {sorted(CAR_CHOICES)}")
+        car = CAR_CHOICES[key]
+        self.loop = self._build_loop(car.engine_spec, car.turbo_spec, self.loop.brake)
         self.loop.brake.reset_pid()
         self._power_pull_active = False
         self._coasting = False
-        self.idle_rpm_target = engine_spec.idle_rpm
-        self.engine_key = key
-        turbo_choices = TURBO_CHOICES_BY_ENGINE.get(key, [])
+        self.idle_rpm_target = car.engine_spec.idle_rpm
+        self.car_key = key
+        turbo_choices = TURBO_CHOICES_BY_CAR.get(key, [])
         self.turbo_key = turbo_choices[0][0] if turbo_choices else None
 
-    def select_engine_by_index(self, index: int) -> None:
-        """Same as select_engine(), addressed by position in ENGINE_CHOICES
-        (dict insertion order) instead of by string key. Exists for
-        boundaries where passing/returning `str` is a real risk -- py4godot's
-        own examples only ever show int/float/bool/Vector3 properties, never
-        str, so the Godot-facing side of engine selection goes through this
+    def select_car_by_index(self, index: int) -> None:
+        """Same as select_car(), addressed by position in CAR_CHOICES (dict
+        insertion order) instead of by string key. Exists for boundaries
+        where passing/returning `str` is a real risk -- py4godot's own
+        examples only ever show int/float/bool/Vector3 properties, never
+        str, so the Godot-facing side of car selection goes through this
         instead of the key-based method."""
-        keys = list(ENGINE_CHOICES.keys())
+        keys = list(CAR_CHOICES.keys())
         if not 0 <= index < len(keys):
-            raise ValueError(f"engine index {index} out of range (0..{len(keys) - 1})")
-        self.select_engine(keys[index])
+            raise ValueError(f"car index {index} out of range (0..{len(keys) - 1})")
+        self.select_car(keys[index])
 
     @staticmethod
-    def list_turbo_choices_for_engine(engine_key: str) -> list[tuple[str, str]]:
-        """[(key, display_name), ...] of turbo choices for a given engine key
-        -- each engine has its own list (see TURBO_CHOICES_BY_ENGINE), so
-        this doesn't assume "the current engine" the way an instance method
-        would; useful for a UI populating a picker before/without switching."""
-        return [(key, name) for key, _, name in TURBO_CHOICES_BY_ENGINE.get(engine_key, [])]
+    def list_turbo_choices_for_car(car_key: str) -> list[tuple[str, str]]:
+        """[(key, display_name), ...] of turbo choices for a given car key --
+        each car has its own list (see TURBO_CHOICES_BY_CAR), so this
+        doesn't assume "the current car" the way an instance method would;
+        useful for a UI populating a picker before/without switching."""
+        return [(key, name) for key, _, name in TURBO_CHOICES_BY_CAR.get(car_key, [])]
 
     def list_turbo_choices(self) -> list[tuple[str, str]]:
-        """Turbo choices for whichever engine is *currently* selected."""
-        return self.list_turbo_choices_for_engine(self.engine_key)
+        """Turbo choices for whichever car is *currently* selected."""
+        return self.list_turbo_choices_for_car(self.car_key)
 
     def select_turbo(self, key: str) -> None:
-        """Swap to a different turbo from the CURRENT engine's own
-        TURBO_CHOICES_BY_ENGINE list, keeping the same EngineSpec -- this is
-        the actual point of the feature: watch one validated engine produce
-        a genuinely different torque/power curve and spool timing under a
+        """Swap to a different turbo from the CURRENT car's own
+        TURBO_CHOICES_BY_CAR list, keeping the same car/EngineSpec -- this is
+        the actual point of the feature: watch one validated car produce a
+        genuinely different torque/power curve and spool timing under a
         different turbo, the way a real turbo swap does, without also
-        changing which engine is "mounted." Aborts any in-progress pull and
-        resets to idle, same as select_engine()."""
-        choices = TURBO_CHOICES_BY_ENGINE.get(self.engine_key, [])
+        changing which car is "on the dyno." Aborts any in-progress pull and
+        resets to idle, same as select_car()."""
+        choices = TURBO_CHOICES_BY_CAR.get(self.car_key, [])
         turbo_spec = next((spec for k, spec, _ in choices if k == key), None)
         if turbo_spec is None:
             available = [k for k, _, _ in choices]
             raise ValueError(
-                f"unknown turbo choice {key!r} for engine {self.engine_key!r}. Available: {available}"
+                f"unknown turbo choice {key!r} for car {self.car_key!r}. Available: {available}"
             )
         engine_spec = self.loop.ecu.engine.spec
         self.loop = self._build_loop(engine_spec, turbo_spec, self.loop.brake)
@@ -227,13 +234,12 @@ class DynoSession:
 
     def select_turbo_by_index(self, index: int) -> None:
         """Same as select_turbo(), addressed by position in the current
-        engine's TURBO_CHOICES_BY_ENGINE list instead of by string key --
-        same str-across-py4godot-boundary reasoning as
-        select_engine_by_index()."""
-        choices = TURBO_CHOICES_BY_ENGINE.get(self.engine_key, [])
+        car's TURBO_CHOICES_BY_CAR list instead of by string key -- same
+        str-across-py4godot-boundary reasoning as select_car_by_index()."""
+        choices = TURBO_CHOICES_BY_CAR.get(self.car_key, [])
         if not 0 <= index < len(choices):
             raise ValueError(
-                f"turbo index {index} out of range (0..{len(choices) - 1}) for engine {self.engine_key!r}"
+                f"turbo index {index} out of range (0..{len(choices) - 1}) for car {self.car_key!r}"
             )
         self.select_turbo(choices[index][0])
 
@@ -243,7 +249,7 @@ class DynoSession:
         clutch, manual gearbox and a tire slipping against the roller -- see
         ChassisDynoLoop/Drivetrain). Rebuilds the loop and aborts any
         in-progress pull, same reset-on-switch convention as
-        select_engine()/select_turbo(); a no-op if already in that mode
+        select_car()/select_turbo(); a no-op if already in that mode
         (so a UI toggle can call this freely without resetting an
         in-progress chassis run by accident)."""
         if mode not in ("crank", "chassis"):
@@ -268,7 +274,7 @@ class DynoSession:
     def select_tire_by_index(self, index: int) -> None:
         """Same as select_tire(), addressed by position in TIRE_CHOICES
         instead of by string key -- same str-across-py4godot-boundary
-        reasoning as select_engine_by_index()."""
+        reasoning as select_car_by_index()."""
         keys = list(TIRE_CHOICES.keys())
         if not 0 <= index < len(keys):
             raise ValueError(f"tire index {index} out of range (0..{len(keys) - 1})")
@@ -304,7 +310,7 @@ class DynoSession:
     def select_transmission_by_index(self, index: int) -> None:
         """Same as select_transmission(), addressed by position in
         TRANSMISSION_CHOICES -- same str-across-py4godot-boundary reasoning
-        as select_engine_by_index()."""
+        as select_car_by_index()."""
         keys = list(TRANSMISSION_CHOICES.keys())
         if not 0 <= index < len(keys):
             raise ValueError(f"transmission index {index} out of range (0..{len(keys) - 1})")

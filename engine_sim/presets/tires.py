@@ -1,6 +1,6 @@
 """Tire presets: a few real-world-representative compounds and sizes, the
 same "swap one axis, keep everything else" pattern as
-TURBO_CHOICES_BY_ENGINE -- watch the same car's slip behavior change under a
+TURBO_CHOICES_BY_CAR -- watch the same car's slip behavior change under a
 different tire the way a real tire swap does, without touching the engine
 or the transmission.
 """

@@ -204,34 +204,34 @@ position = Vector2(20, 660)
 size = Vector2(140, 40)
 text = "Restart"
 
-[node name="EngineRow" type="VBoxContainer" parent="UI"]
+[node name="CarRow" type="VBoxContainer" parent="UI"]
 layout_mode = 0
 position = Vector2(820, 20)
 size = Vector2(440, 110)
 
-[node name="EngineLabel" type="Label" parent="UI/EngineRow"]
+[node name="CarLabel" type="Label" parent="UI/CarRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
-text = "Engine"
+text = "Car"
 
-[node name="EngineOption" type="OptionButton" parent="UI/EngineRow"]
+[node name="CarOption" type="OptionButton" parent="UI/CarRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(420, 0)
 
-[node name="TurboLabel" type="Label" parent="UI/EngineRow"]
+[node name="TurboLabel" type="Label" parent="UI/CarRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 text = "Turbo"
 
-[node name="TurboOption" type="OptionButton" parent="UI/EngineRow"]
+[node name="TurboOption" type="OptionButton" parent="UI/CarRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(420, 0)
 
 [connection signal="value_changed" from="UI/ThrottleRow/ThrottleSlider" to="." method="_on_throttle_changed"]
 [connection signal="pressed" from="UI/RestartButton" to="." method="_on_restart_pressed"]
-[connection signal="item_selected" from="UI/EngineRow/EngineOption" to="." method="_on_engine_selected"]
-[connection signal="item_selected" from="UI/EngineRow/TurboOption" to="." method="_on_turbo_selected"]
+[connection signal="item_selected" from="UI/CarRow/CarOption" to="." method="_on_car_selected"]
+[connection signal="item_selected" from="UI/CarRow/TurboOption" to="." method="_on_turbo_selected"]

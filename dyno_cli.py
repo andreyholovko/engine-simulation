@@ -6,10 +6,10 @@ input()):
     .venv/bin/python dyno_cli.py
 
 Commands:
-    engines            list selectable engines (key + display name)
-    engine <key>        switch to a different engine (and its stock turbo)
-    turbos              list turbo choices for the CURRENT engine
-    turbo <key>         swap turbos on the SAME engine -- different curve,
+    cars                list selectable cars (key + display name)
+    car <key>           switch to a different car (its engine + stock turbo)
+    turbos              list turbo choices for the CURRENT car
+    turbo <key>         swap turbos on the SAME car -- different curve,
                        same validated engine spec
     throttle <0-100>   set throttle percent (free-play mode)
     boost <0-100|auto>  override wastegate target as % of max boost, or
@@ -83,7 +83,8 @@ def main() -> None:
     session = DynoSession()
     throttle_pct = 0.0
     print(__doc__)
-    print("Ready. Engine: " + session.ecu.engine.spec.name)
+    car_name = next(name for key, name in DynoSession.list_car_choices() if key == session.car_key)
+    print("Ready. Car: " + car_name)
 
     while True:
         try:
@@ -98,15 +99,15 @@ def main() -> None:
         if cmd in ("quit", "exit"):
             break
 
-        elif cmd == "engines":
-            for key, name in DynoSession.list_engine_choices():
-                marker = "*" if key == session.engine_key else " "
+        elif cmd == "cars":
+            for key, name in DynoSession.list_car_choices():
+                marker = "*" if key == session.car_key else " "
                 print(f" {marker} {key:16s} {name}")
 
-        elif cmd == "engine" and len(parts) == 2:
+        elif cmd == "car" and len(parts) == 2:
             try:
-                session.select_engine(parts[1])
-                print(f"engine: {session.ecu.engine.spec.name}")
+                session.select_car(parts[1])
+                print(f"car: {session.ecu.engine.spec.name}")
             except ValueError as exc:
                 print(exc)
 

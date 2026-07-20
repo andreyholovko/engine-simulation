@@ -22,12 +22,12 @@ see the [Godot section of the README](README.md#using-it-from-godot).
   test in `tests/` over relying on manual verification — the existing suite
   includes regression tests for several real bugs (idle stability, coast-down
   physics, PID handoff) that are easy to silently reintroduce.
-- If you add a new engine or turbo preset, see "Adding your own engine or
-  turbo" in the [README](README.md#using-engine_sim-in-your-own-project). Only add
-  it to `ENGINE_CHOICES`/`TURBO_CHOICES_BY_ENGINE` if you can validate it
-  against a published dyno figure (see `tests/test_*_validation.py` for the
-  pattern) — undocumented/unvalidated presets should stay out of the
-  selectable list, same as `EA888_GEN3B_IS38` today.
+- If you add a new engine or turbo preset, see "Adding a new engine" in the
+  [README](README.md#adding-a-new-engine). Only add it to
+  `CAR_CHOICES`/`TURBO_CHOICES_BY_CAR` if you can validate it against a
+  published dyno figure (see `tests/test_*_validation.py` for the pattern) —
+  undocumented/unvalidated presets should stay out of the selectable list,
+  same as `EA888_GEN3B_IS38` today.
 - Keep `engine_sim/` free of Godot imports. `godot/scripts/dyno_controller.py`
   is the only file allowed to touch both sides.
 
