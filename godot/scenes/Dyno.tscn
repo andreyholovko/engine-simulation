@@ -322,6 +322,14 @@ text = "Clutch"
 layout_mode = 2
 text = "100% locked"
 
+[node name="DrivetrainLabel" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "Drivetrain"
+
+[node name="DrivetrainValue" type="Label" parent="Layout/ReadoutsSection/Readouts"]
+layout_mode = 2
+text = "FWD"
+
 [node name="Sep5" type="HSeparator" parent="Layout"]
 layout_mode = 2
 

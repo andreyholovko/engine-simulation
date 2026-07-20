@@ -27,6 +27,12 @@ _ensure_engine_sim_importable()
 
 from engine_sim import DynoSession  # noqa: E402
 from engine_sim.core.automatic_drivetrain import AutomaticDrivetrain  # noqa: E402
+from engine_sim.presets import CAR_CHOICES  # noqa: E402
+
+# CarSpec.drivetrain_layout ("fwd"/"rwd"/"awd") -> the int dyno_controller
+# actually exposes (drivetrain_layout_index) -- see that property's own
+# comment for why.
+_DRIVETRAIN_LAYOUT_INDEX = {"fwd": 0, "rwd": 1, "awd": 2}
 
 
 @gdclass
@@ -129,6 +135,13 @@ class dyno_controller(Node):
 	# signature is stale, without needing a str/object identity check
 	# across the boundary.
 	engine_generation: int = 0
+	# CarSpec.drivetrain_layout, encoded as a plain int rather than the
+	# "fwd"/"rwd"/"awd" string it actually is -- same str-across-py4godot-
+	# boundary reasoning as every other picker here. 0=FWD, 1=RWD, 2=AWD
+	# (see _DRIVETRAIN_LAYOUT_INDEX below); the UI maps this back to a label
+	# via its own hardcoded array, same convention as car_option/
+	# turbo_option's labels.
+	drivetrain_layout_index: int = 0
 
 	power_pull_finished = signal([])
 
@@ -163,6 +176,7 @@ class dyno_controller(Node):
 		self.displacement_l = spec.displacement_l
 		self.firing_order_length = len(spec.firing_order_resolved)
 		self.engine_generation += 1
+		self.drivetrain_layout_index = _DRIVETRAIN_LAYOUT_INDEX[CAR_CHOICES[self._session.car_key].drivetrain_layout]
 		self._refresh_turbo_choices()
 		self._refresh_turbo_facts()
 

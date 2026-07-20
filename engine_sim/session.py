@@ -31,7 +31,7 @@ from engine_sim.core import (
 from engine_sim.presets import (
     CAR_CHOICES,
     CLUTCH_PERFORMANCE,
-    ROLLER_STANDARD,
+    ROLLER_BY_DRIVETRAIN_LAYOUT,
     TIRE_CHOICES,
     TRANSMISSION_CHOICES,
     TURBO_CHOICES_BY_CAR,
@@ -101,12 +101,13 @@ class DynoSession:
             raise ValueError(f"unknown car choice: {car_key!r}. Available: {sorted(CAR_CHOICES)}")
         car = CAR_CHOICES[car_key]
 
-        # dyno_mode/tire_key/transmission_key must exist before _build_loop()
-        # is first called (it reads them to decide what kind of loop to
-        # construct).
+        # dyno_mode/tire_key/transmission_key/car_key must exist before
+        # _build_loop() is first called (it reads them to decide what kind
+        # of loop, and which car's own RollerSpec/traction, to construct).
         self.dyno_mode = "crank"
         self.tire_key = "street"
         self.transmission_key = "manual_6speed"
+        self.car_key = car_key
         self.drivetrain: Optional[Union[Drivetrain, AutomaticDrivetrain]] = None
 
         self.loop = self._build_loop(car.engine_spec, car.turbo_spec, brake if brake is not None else DynoBrake())
@@ -117,7 +118,6 @@ class DynoSession:
         # actually takes over, not stale from whatever it was doing before.
         self._coasting = False
         self.idle_rpm_target = car.engine_spec.idle_rpm
-        self.car_key = car_key
         # Stock/default turbo for this car by TURBO_CHOICES_BY_CAR
         # convention (index 0) -- always meaningful here since car_key is
         # already validated above.
@@ -132,12 +132,17 @@ class DynoSession:
         session across an engine/turbo swap instead of silently reverting to
         a crank loop. Side effect: (re)sets self.drivetrain to match --
         None in crank mode, a fresh Drivetrain or AutomaticDrivetrain
-        (current tire_key/transmission_key) in chassis mode. Which class
-        depends entirely on the type of spec TRANSMISSION_CHOICES hands
-        back for transmission_key -- an AutomaticTransmissionSpec carries
-        its own TorqueConverterSpec, so that alone is enough to tell them
-        apart (see AutomaticDrivetrain's docstring for why it needs a
-        different class rather than a flag on Drivetrain)."""
+        (current tire_key/transmission_key/car_key) in chassis mode. Which
+        drivetrain CLASS depends entirely on the type of spec
+        TRANSMISSION_CHOICES hands back for transmission_key -- an
+        AutomaticTransmissionSpec carries its own TorqueConverterSpec, so
+        that alone is enough to tell them apart (see AutomaticDrivetrain's
+        docstring for why it needs a different class rather than a flag on
+        Drivetrain). Which ROLLER (traction/grip) it gets instead depends on
+        the current car's own drivetrain_layout -- see
+        ROLLER_BY_DRIVETRAIN_LAYOUT -- so an engine/turbo swap that keeps the
+        same car keeps the same grip, but select_car() genuinely changes it,
+        same as a real FWD/RWD/AWD swap would."""
         engine = ParametricEngine(engine_spec)
         turbo = Turbo(turbo_spec, firing_order_length=len(engine_spec.firing_order_resolved))
         ecu = ECU(engine, turbo)
@@ -146,10 +151,11 @@ class DynoSession:
             return SimulationLoop(ecu, brake)
         tire_spec, _ = TIRE_CHOICES[self.tire_key]
         transmission_spec, _ = TRANSMISSION_CHOICES[self.transmission_key]
+        roller_spec = ROLLER_BY_DRIVETRAIN_LAYOUT[CAR_CHOICES[self.car_key].drivetrain_layout]
         if isinstance(transmission_spec, AutomaticTransmissionSpec):
-            self.drivetrain = AutomaticDrivetrain(transmission_spec, CLUTCH_PERFORMANCE, tire_spec, ROLLER_STANDARD)
+            self.drivetrain = AutomaticDrivetrain(transmission_spec, CLUTCH_PERFORMANCE, tire_spec, roller_spec)
         else:
-            self.drivetrain = Drivetrain(transmission_spec, CLUTCH_PERFORMANCE, tire_spec, ROLLER_STANDARD)
+            self.drivetrain = Drivetrain(transmission_spec, CLUTCH_PERFORMANCE, tire_spec, roller_spec)
         return ChassisDynoLoop(ecu, brake, self.drivetrain)
 
     @property
@@ -168,21 +174,24 @@ class DynoSession:
     def select_car(self, key: str) -> None:
         """Swap to a different car (its engine + its stock turbo, see
         CarSpec) from CAR_CHOICES, mid-session. Rebuilds Engine/Turbo/ECU (a
-        different car means a different engine spec driving them) but keeps
-        the same DynoBrake -- the dyno's own inertia/drag isn't a property
-        of whichever car happens to be mounted. Always resets to that car's
-        own stock turbo (see TURBO_CHOICES_BY_CAR) -- a turbo choice from
-        the previous car isn't necessarily valid, or even meaningful, on a
-        different one."""
+        different car means a different engine spec driving them, and
+        possibly a different drivetrain_layout -- see _build_loop()) but
+        keeps the same DynoBrake -- the dyno's own inertia/drag isn't a
+        property of whichever car happens to be mounted. Always resets to
+        that car's own stock turbo (see TURBO_CHOICES_BY_CAR) -- a turbo
+        choice from the previous car isn't necessarily valid, or even
+        meaningful, on a different one."""
         if key not in CAR_CHOICES:
             raise ValueError(f"unknown car choice: {key!r}. Available: {sorted(CAR_CHOICES)}")
         car = CAR_CHOICES[key]
+        # Set before _build_loop() -- it reads self.car_key to look up this
+        # car's own RollerSpec (see that method's docstring).
+        self.car_key = key
         self.loop = self._build_loop(car.engine_spec, car.turbo_spec, self.loop.brake)
         self.loop.brake.reset_pid()
         self._power_pull_active = False
         self._coasting = False
         self.idle_rpm_target = car.engine_spec.idle_rpm
-        self.car_key = key
         turbo_choices = TURBO_CHOICES_BY_CAR.get(key, [])
         self.turbo_key = turbo_choices[0][0] if turbo_choices else None
 

@@ -44,7 +44,10 @@ from engine_sim.presets.transmissions import (
     TRANSMISSION_AUTO_6SPEED,
     TORQUE_CONVERTER_STANDARD,
     CLUTCH_PERFORMANCE,
-    ROLLER_STANDARD,
+    ROLLER_FWD,
+    ROLLER_RWD,
+    ROLLER_AWD,
+    ROLLER_BY_DRIVETRAIN_LAYOUT,
     TRANSMISSION_CHOICES,
 )
 from engine_sim.specs import CarSpec
@@ -54,16 +57,27 @@ from engine_sim.specs import CarSpec
 # Add a new selectable car by adding one entry here once its engine/turbo
 # preset files exist. CarSpec.turbo_spec here is always that car's *stock*
 # turbo -- see TURBO_CHOICES_BY_CAR for swappable alternatives on the same
-# car.
+# car; CarSpec.drivetrain_layout picks its RollerSpec (traction) via
+# ROLLER_BY_DRIVETRAIN_LAYOUT.
+#
+# One of each real layout, deliberately: the Mk7 GTI is genuinely FWD (VW
+# never sold a US-market GTI with a driven rear axle), the C6 Corvette is
+# genuinely RWD (no AWD C6 ever existed), and the 340i here is specifically
+# the xDrive variant -- the real, factory AWD version of the same B58B30
+# engine BMW also sold RWD -- rather than the base RWD 340i, precisely so
+# these three cars cover fwd/rwd/awd instead of landing on rwd twice.
 CAR_CHOICES = {
     "mk7_gti": CarSpec(
-        name="VW/Audi Mk7 GTI (EA888 Gen3, IS20)", engine_spec=EA888_GEN3_IS20, turbo_spec=TURBO_IS20,
+        name="VW/Audi Mk7 GTI (EA888 Gen3, IS20)",
+        engine_spec=EA888_GEN3_IS20, turbo_spec=TURBO_IS20, drivetrain_layout="fwd",
     ),
     "f30_340i": CarSpec(
-        name="BMW F30 340i (B58B30)", engine_spec=B58_340I, turbo_spec=TURBO_B58,
+        name="BMW F30 340i xDrive (B58B30)",
+        engine_spec=B58_340I, turbo_spec=TURBO_B58, drivetrain_layout="awd",
     ),
     "c6_corvette": CarSpec(
-        name="Chevrolet C6 Corvette (LS2, NA)", engine_spec=LS2_NA, turbo_spec=TURBO_NONE,
+        name="Chevrolet C6 Corvette (LS2, NA)",
+        engine_spec=LS2_NA, turbo_spec=TURBO_NONE, drivetrain_layout="rwd",
     ),
 }
 
@@ -115,6 +129,9 @@ __all__ = [
     "TRANSMISSION_AUTO_6SPEED",
     "TORQUE_CONVERTER_STANDARD",
     "CLUTCH_PERFORMANCE",
-    "ROLLER_STANDARD",
+    "ROLLER_FWD",
+    "ROLLER_RWD",
+    "ROLLER_AWD",
+    "ROLLER_BY_DRIVETRAIN_LAYOUT",
     "TRANSMISSION_CHOICES",
 ]

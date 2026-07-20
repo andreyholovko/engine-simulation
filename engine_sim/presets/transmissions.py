@@ -5,6 +5,8 @@ should feel like swapping a real car's gearbox, not switching to a
 different car.
 """
 
+from dataclasses import replace
+
 from engine_sim.specs import (
     AutomaticTransmissionSpec,
     ClutchSpec,
@@ -37,15 +39,45 @@ CLUTCH_PERFORMANCE = ClutchSpec(
 # A single roller/drum representing the road: physical drum inertia
 # (~large steel roller) plus a typical compact-performance-car curb weight
 # reflected into the roller's own rotational inertia (see
-# RollerSpec's docstring).
-ROLLER_STANDARD = RollerSpec(
-    name="Standard single-roller chassis dyno",
+# RollerSpec's docstring). Every car shares the same physical roller/curb
+# weight -- only driven_axle_weight_fraction changes below, per drivetrain
+# layout (see CarSpec.drivetrain_layout/ROLLER_BY_DRIVETRAIN_LAYOUT), so a
+# grip difference between cars is provably just that one number, not a
+# hidden difference in mass or drum inertia too.
+#
+# RWD is the unmodified baseline (0.5 -- roughly what a rear-biased-under-
+# acceleration 2WD car actually launches on). FWD launches on meaningfully
+# less than that: accelerating transfers weight rearward, off the driven
+# (front) axle, right when it needs grip most -- 0.40 here, a real-world
+# "why FWD hatchbacks chirp the tires off the line" number. AWD launches on
+# effectively the whole car: both axles are putting power down into this
+# same single-tire model at once, so nearly all the car's weight
+# contributes to traction -- 0.95 (not a literal 1.0, leaving a little room
+# for real-world imperfect front/rear torque split).
+ROLLER_RWD = RollerSpec(
+    name="Standard single-roller chassis dyno (RWD)",
     radius_m=0.25,
     inertia_kgm2=80.0,
     vehicle_mass_kg=1500.0,
     parasitic_torque_nm=15.0,
-    driven_axle_weight_fraction=0.5,
+    driven_axle_weight_fraction=0.50,
 )
+ROLLER_FWD = replace(
+    ROLLER_RWD, name="Standard single-roller chassis dyno (FWD)", driven_axle_weight_fraction=0.40,
+)
+ROLLER_AWD = replace(
+    ROLLER_RWD, name="Standard single-roller chassis dyno (AWD)", driven_axle_weight_fraction=0.95,
+)
+
+# CarSpec.drivetrain_layout -> the RollerSpec DynoSession picks for it (see
+# DynoSession._build_loop()). Every car with the same layout shares the
+# exact same roller -- there's nothing per-car about traction beyond which
+# of these three a car's own drivetrain_layout points at.
+ROLLER_BY_DRIVETRAIN_LAYOUT = {
+    "fwd": ROLLER_FWD,
+    "rwd": ROLLER_RWD,
+    "awd": ROLLER_AWD,
+}
 
 # Tuned against the EA888/IS20 (idle creep settles ~795rpm from an 900rpm
 # idle, WOT stall speed ~2260rpm, both realistic for a compact turbo car) --

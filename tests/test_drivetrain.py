@@ -7,7 +7,7 @@ from engine_sim.core.drivetrain import Drivetrain
 from engine_sim.core.tire import Tire
 from engine_sim.presets import (
     COMPOUND_STREET,
-    ROLLER_STANDARD,
+    ROLLER_RWD,
     TIRE_STREET,
     TRANSMISSION_6MT,
 )
@@ -184,7 +184,7 @@ def test_clutch_capacity_scales_with_engagement_and_clamps():
 
 def _drivetrain(clutch_capacity_nm: float = 550.0) -> Drivetrain:
     clutch_spec = ClutchSpec(name="test clutch", max_static_torque_nm=clutch_capacity_nm)
-    return Drivetrain(TRANSMISSION_6MT, clutch_spec, TIRE_STREET, ROLLER_STANDARD)
+    return Drivetrain(TRANSMISSION_6MT, clutch_spec, TIRE_STREET, ROLLER_RWD)
 
 
 def test_drivetrain_starts_in_neutral():
@@ -210,7 +210,7 @@ def test_integrate_wheel_lands_at_zero_slip_instead_of_overshooting_past_it():
     # A deliberately huge negative alpha -- enough to send the wheel far
     # past matching the roller's surface speed if applied naively.
     dt_train._integrate_wheel(alpha_wheel=-1.0e6, sub_dt=0.01)
-    expected_wheel_omega = (dt_train.omega_roller * ROLLER_STANDARD.radius_m) / TIRE_STREET.radius_m
+    expected_wheel_omega = (dt_train.omega_roller * ROLLER_RWD.radius_m) / TIRE_STREET.radius_m
     assert dt_train.omega_wheel == pytest.approx(expected_wheel_omega)
     assert dt_train.omega_wheel > 0.0  # not just floored at 0 -- landed at the actual crossing point
 
@@ -290,7 +290,7 @@ def test_wheel_power_matches_tire_force_formula():
     dt_train = _drivetrain()
     dt_train.omega_roller = 20.0  # already moving, so there's a real vehicle_speed_mps
     reading = dt_train.tick(dt=0.001, omega_engine_rad_s=100.0, engine_torque_nm=0.0, engine_inertia_kgm2=0.18)
-    vehicle_speed_mps = dt_train.omega_roller * ROLLER_STANDARD.radius_m
+    vehicle_speed_mps = dt_train.omega_roller * ROLLER_RWD.radius_m
     assert reading.wheel_power_w == pytest.approx(reading.tire_force_n * vehicle_speed_mps, rel=1e-2)
 
 
@@ -373,7 +373,7 @@ def test_vehicle_speed_derived_from_roller_surface_speed():
     dt_train = _drivetrain()
     dt_train.omega_roller = 40.0
     reading = dt_train.tick(dt=0.001, omega_engine_rad_s=100.0, engine_torque_nm=0.0, engine_inertia_kgm2=0.18)
-    assert reading.vehicle_speed_kmh == pytest.approx(40.0 * ROLLER_STANDARD.radius_m * 3.6, rel=0.05)
+    assert reading.vehicle_speed_kmh == pytest.approx(40.0 * ROLLER_RWD.radius_m * 3.6, rel=0.05)
 
 
 def test_aero_drag_decelerates_roller_at_high_speed_with_no_drive_force():

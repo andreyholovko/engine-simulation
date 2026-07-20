@@ -47,7 +47,7 @@ const SMOKE_SLIP_THRESHOLD := 0.18  # beyond the tire's peak-grip slip ratio -- 
 # the full explanation). Keep in sync if either preset list changes.
 const CAR_LABELS := [
 	"VW/Audi Mk7 GTI (EA888 Gen3, IS20)",
-	"BMW F30 340i (B58B30)",
+	"BMW F30 340i xDrive (B58B30)",
 	"Chevrolet C6 Corvette (LS2, NA)",
 ]
 const TURBO_LABELS_BY_CAR := [
@@ -55,6 +55,23 @@ const TURBO_LABELS_BY_CAR := [
 	["Stock MHI single twin-scroll (340i)", "BMW B58TU (M340i/Supra factory upgrade)", "Aftermarket big single (Pure Stage 2-class)"],
 	["Naturally aspirated (stock)", "Twin-turbo kit (representative, stock-internals-safe)"],
 ]
+
+# Hardcoded, matching engine_sim/presets/tires.py's TIRE_CHOICES order
+# exactly -- same str-across-py4godot-boundary reasoning as CAR_LABELS.
+# Independent of which car is selected (same three tires available on
+# every car), unlike TURBO_LABELS_BY_CAR.
+const TIRE_LABELS := [
+	"225/45R17 Street All-Season",
+	"245/40R18 Sport Summer",
+	"315/40R18 Drag Radial",
+]
+
+# controller.drivetrain_layout_index (0/1/2) -> label -- must match
+# drag_controller.py's own _DRIVETRAIN_LAYOUT_INDEX mapping (0=FWD, 1=RWD,
+# 2=AWD), same reasoning as CAR_LABELS above.
+const DRIVETRAIN_LABELS := ["FWD", "RWD", "AWD"]
+const SLIP_NORMAL_COLOR := Color(1, 1, 1, 1)
+const SLIP_SPINNING_COLOR := Color(1, 0.3, 0.2, 1)
 
 # Acceleration -> screen-shake/squat tuning. Divisors are "accel (m/s^2) that
 # maxes out the effect" -- picked against what a real launch actually
@@ -76,7 +93,8 @@ const TILT_SMOOTHING_PER_S := 6.0
 @onready var finish_line: Node2D = $FinishLine
 @onready var wheel_front: Node2D = $Car/WheelFront
 @onready var wheel_rear: Node2D = $Car/WheelRear
-@onready var smoke: CPUParticles2D = $Car/WheelRear/SmokeParticles
+@onready var smoke_front: CPUParticles2D = $Car/WheelFront/SmokeParticles
+@onready var smoke_rear: CPUParticles2D = $Car/WheelRear/SmokeParticles
 
 @onready var countdown_label: Label = $UI/CountdownLabel
 @onready var throttle_slider: VSlider = $UI/ThrottleRow/ThrottleSlider
@@ -88,12 +106,15 @@ const TILT_SMOOTHING_PER_S := 6.0
 @onready var time_value: Label = $UI/StatsPanel/TimeValue
 @onready var split_100_value: Label = $UI/StatsPanel/Split100Value
 @onready var split_200_value: Label = $UI/StatsPanel/Split200Value
+@onready var slip_value: Label = $UI/StatsPanel/SlipValue
+@onready var drivetrain_value: Label = $UI/StatsPanel/DrivetrainValue
 @onready var results_panel: Control = $UI/ResultsPanel
 @onready var result_time_label: Label = $UI/ResultsPanel/ResultTimeLabel
 @onready var result_trap_label: Label = $UI/ResultsPanel/ResultTrapLabel
 @onready var restart_button: Button = $UI/RestartButton
 @onready var car_option: OptionButton = $UI/CarRow/CarOption
 @onready var turbo_option: OptionButton = $UI/CarRow/TurboOption
+@onready var tire_option: OptionButton = $UI/CarRow/TireOption
 
 var _prev_speed_mps := 0.0
 
@@ -104,6 +125,7 @@ func _ready() -> void:
 	results_panel.visible = false
 	_populate_car_options()
 	_populate_turbo_options(0)
+	_populate_tire_options()
 
 
 func _populate_car_options() -> void:
@@ -119,6 +141,13 @@ func _populate_turbo_options(car_index: int) -> void:
 		turbo_option.add_item(label)
 	if turbo_option.item_count > 0:
 		turbo_option.select(0)
+
+
+func _populate_tire_options() -> void:
+	for label in TIRE_LABELS:
+		tire_option.add_item(label)
+	if tire_option.item_count > 0:
+		tire_option.select(0)
 
 
 func _process(delta: float) -> void:
@@ -156,15 +185,47 @@ func _process(delta: float) -> void:
 	# tire breaking loose.
 	var tire_radius_m: float = controller.tire_radius_m
 	var wheel_visual_scale := tire_radius_m * Layout.PIXELS_PER_METER / Layout.WHEEL_RADIUS_PX
+	var vehicle_speed_kmh: float = controller.vehicle_speed_kmh
+	var vehicle_speed_mps := vehicle_speed_kmh / 3.6
+
+	# wheel_rpm is the DRIVEN axle's own (possibly slip-affected) speed --
+	# the sim only models one tire, standing in for whichever axle the
+	# current car's drivetrain_layout actually powers (see
+	# DynoSession._build_loop()/ROLLER_BY_DRIVETRAIN_LAYOUT). The OTHER
+	# axle gets no engine torque at all, so it can't slip -- it just rolls
+	# with the car's real ground speed at zero slip, the ordinary
+	# "vehicle_speed / tire_radius" relationship every free-rolling wheel
+	# has. That's what makes a spinning driven axle visibly outrun the
+	# free-rolling one instead of both wheels always matching.
 	var wheel_rpm: float = controller.wheel_rpm
-	var wheel_delta_rad := wheel_rpm * TAU / 60.0 * wheel_visual_scale * delta
-	wheel_front.rotation += wheel_delta_rad
-	wheel_rear.rotation += wheel_delta_rad
+	var driven_delta_rad := wheel_rpm * TAU / 60.0 * wheel_visual_scale * delta
+	var free_omega_rad_s := vehicle_speed_mps / tire_radius_m
+	var free_delta_rad := free_omega_rad_s * wheel_visual_scale * delta
+
+	# 0=FWD (front driven), 1=RWD (rear driven), 2=AWD (both driven -- no
+	# free-rolling wheel at all) -- must match drag_controller.py's own
+	# _DRIVETRAIN_LAYOUT_INDEX.
+	var drivetrain_layout_index: int = controller.drivetrain_layout_index
+	var front_driven: bool = drivetrain_layout_index == 0 or drivetrain_layout_index == 2
+	var rear_driven: bool = drivetrain_layout_index == 1 or drivetrain_layout_index == 2
+	wheel_front.rotation += driven_delta_rad if front_driven else free_delta_rad
+	wheel_rear.rotation += driven_delta_rad if rear_driven else free_delta_rad
 
 	var slip_ratio: float = controller.slip_ratio
-	smoke.emitting = abs(slip_ratio) > SMOKE_SLIP_THRESHOLD
+	# abs() is generically typed in GDScript, so its return doesn't
+	# statically resolve to float -- same ":=" inference failure documented
+	# in dyno_ui.gd's _update_shift_buttons_enabled(). Explicit `: bool`
+	# sidesteps it.
+	var is_spinning: bool = abs(slip_ratio) > SMOKE_SLIP_THRESHOLD
+	# Smoke only comes off the axle that's actually spinning: a FWD car's
+	# rear wheels never see engine torque at all, so they never smoke no
+	# matter how hard the fronts break loose, and vice versa for RWD; AWD
+	# can smoke at both since both axles are genuinely driven.
+	smoke_front.emitting = is_spinning and front_driven
+	smoke_rear.emitting = is_spinning and rear_driven
+	slip_value.text = "Slip: %+.3f%s" % [slip_ratio, " SPIN!" if is_spinning else ""]
+	slip_value.add_theme_color_override("font_color", SLIP_SPINNING_COLOR if is_spinning else SLIP_NORMAL_COLOR)
 
-	var vehicle_speed_kmh: float = controller.vehicle_speed_kmh
 	_update_acceleration_feel(vehicle_speed_kmh, delta)
 
 	rpm_value.text = "%.0f rpm" % controller.rpm
@@ -175,6 +236,7 @@ func _process(delta: float) -> void:
 	time_value.text = "%.2f s" % race_time_s
 	split_100_value.text = _format_split("0-100 km/h", controller.time_to_100_kmh_s)
 	split_200_value.text = _format_split("0-200 km/h", controller.time_to_200_kmh_s)
+	drivetrain_value.text = "Drivetrain: %s" % DRIVETRAIN_LABELS[drivetrain_layout_index]
 
 	if race_state == 0:
 		var secs: float = controller.countdown_s
@@ -262,6 +324,11 @@ func _on_car_selected(index: int) -> void:
 
 func _on_turbo_selected(index: int) -> void:
 	controller.select_turbo_by_index(index)
+	_reset_ui_for_new_run()
+
+
+func _on_tire_selected(index: int) -> void:
+	controller.select_tire_by_index(index)
 	_reset_ui_for_new_run()
 
 

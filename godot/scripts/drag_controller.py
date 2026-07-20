@@ -28,9 +28,16 @@ def _ensure_engine_sim_importable() -> None:
 _ensure_engine_sim_importable()
 
 from engine_sim import DynoSession  # noqa: E402
+from engine_sim.presets import CAR_CHOICES  # noqa: E402
 
 QUARTER_MILE_M = 402.336
 COUNTDOWN_S = 3.0
+
+# CarSpec.drivetrain_layout ("fwd"/"rwd"/"awd") -> the int this controller
+# actually exposes (drivetrain_layout_index) -- same str-across-py4godot-
+# boundary reasoning as every other picker, see dyno_controller.py's own
+# copy of this same mapping.
+_DRIVETRAIN_LAYOUT_INDEX = {"fwd": 0, "rwd": 1, "awd": 2}
 
 # race_state values -- plain int across the py4godot boundary (same
 # reasoning as every enum-shaped property in dyno_controller.py: no
@@ -85,6 +92,10 @@ class drag_controller(Node):
 	max_boost_bar: float = 1.3
 	firing_order_length: int = 4
 	engine_generation: int = 0
+	# CarSpec.drivetrain_layout, encoded as 0=FWD/1=RWD/2=AWD -- see
+	# dyno_controller.py's own copy of this property/mapping for the full
+	# str-across-py4godot-boundary reasoning.
+	drivetrain_layout_index: int = 0
 
 	# --- race bookkeeping ---
 	race_state: int = STATE_COUNTDOWN
@@ -105,6 +116,7 @@ class drag_controller(Node):
 		self._elapsed_since_ready_s = 0.0
 		self._car_key = "mk7_gti"
 		self._turbo_index = 0  # index into TURBO_CHOICES_BY_CAR[_car_key]; 0 = stock
+		self._tire_index = 0  # index into TIRE_CHOICES; 0 = street
 
 	def _ready(self) -> None:
 		self._session = DynoSession()
@@ -121,6 +133,7 @@ class drag_controller(Node):
 		self.firing_order_length = len(engine_spec.firing_order_resolved)
 		self.max_boost_bar = self._session.ecu.turbo.spec.max_boost_bar
 		self.engine_generation += 1
+		self.drivetrain_layout_index = _DRIVETRAIN_LAYOUT_INDEX[CAR_CHOICES[self._session.car_key].drivetrain_layout]
 
 	def _arm_countdown(self) -> None:
 		"""Resets every piece of race-run state and re-arms the 3-second
@@ -145,15 +158,18 @@ class drag_controller(Node):
 		callable from a Restart button once a run has finished. A full fresh
 		DynoSession (not just _arm_countdown()) so a stuck/unusual
 		drivetrain state from the previous run can never carry over. Restores
-		BOTH the current car and turbo choice -- select_car() alone would
-		silently revert to that car's stock turbo, quietly discarding a
-		turbo swap the driver made before hitting Restart."""
+		the current car, turbo, AND tire choice -- select_car() alone would
+		silently revert to that car's stock turbo, and a fresh DynoSession()
+		always starts on the street tire, quietly discarding whatever the
+		driver had picked before hitting Restart."""
 		self._session = DynoSession()
 		self._session.select_dyno_mode("chassis")
 		self._session.select_transmission("auto_6speed")
 		self._session.select_car(self._car_key)
 		if self._turbo_index != 0:
 			self._session.select_turbo_by_index(self._turbo_index)
+		if self._tire_index != 0:
+			self._session.select_tire_by_index(self._tire_index)
 		self._refresh_engine_facts()
 		self._arm_countdown()
 
@@ -170,8 +186,6 @@ class drag_controller(Node):
 		necessarily valid, or even meaningful, on a different one."""
 		if self._session is None:
 			return
-		from engine_sim.presets import CAR_CHOICES
-
 		keys = list(CAR_CHOICES.keys())
 		if not 0 <= index < len(keys):
 			return
@@ -189,6 +203,23 @@ class drag_controller(Node):
 			return
 		self._turbo_index = index
 		self._session.select_turbo_by_index(index)
+		self._refresh_engine_facts()
+		self._arm_countdown()
+
+	def select_tire_by_index(self, index: int) -> None:
+		"""Same index-addressed convention as select_car_by_index()/
+		select_turbo_by_index() -- tire choices (TIRE_CHOICES) are a third,
+		independent axis from car/turbo (same tire options regardless of
+		which car is mounted), same as the dyno scene's own tire picker
+		(dyno_ui.gd). Re-arms the countdown for the same reason a car/turbo
+		swap does: a different tire changes both grip (peak_mu) and the
+		real radius wheel_visual_scale depends on (see tire_radius_m/
+		_refresh_engine_facts()), so an in-progress run against the old
+		tire's numbers wouldn't be meaningful to keep going."""
+		if self._session is None:
+			return
+		self._tire_index = index
+		self._session.select_tire_by_index(index)
 		self._refresh_engine_facts()
 		self._arm_countdown()
 
@@ -238,13 +269,25 @@ class drag_controller(Node):
 			# would actually produce. Engine/turbo/rpm are left alone --
 			# idle sounds and reads normally waiting for green; the
 			# reported snapshot below still carries that one tick's worth
-			# of (sub-millimeter, imperceptible) creep before the reset
-			# below erases it for next tick's integration -- not worth
-			# re-ticking just to scrub it from the display too.
+			# of (sub-millimeter, imperceptible) creep before this reset
+			# erases it for next tick's integration.
 			self._session.drivetrain.omega_wheel = 0.0
 			self._session.drivetrain.omega_roller = 0.0
 
 		self._refresh_readout(snapshot)
+
+		if self.race_state == STATE_COUNTDOWN:
+			# slip_ratio above is a real artifact of the reset order, not
+			# real wheelspin: this tick's own Drivetrain.tick() computed it
+			# from the tiny creep BEFORE the omega reset just above ran, so
+			# it can read close to the tire's own max (a near-zero-speed
+			# wheel against a held-at-zero roller is exactly the "divide by
+			# a very small number" case) even though the wheel is genuinely
+			# held still, not spinning against the road. Zero it here so
+			# the UI's own wheelspin indicator only ever lights up for
+			# real post-green wheelspin.
+			self.slip_ratio = 0.0
+
 		speed_mps = snapshot.vehicle_speed_kmh / 3.6
 		self.distance_m += speed_mps * delta
 

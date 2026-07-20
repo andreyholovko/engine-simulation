@@ -245,9 +245,15 @@ def test_automatic_transmission_cruise_at_partial_throttle_is_stable():
             break
 
     # Dropping from WOT to 40% throttle can itself trigger a genuine gear
-    # change and a real settling transient -- give it a second to land in
-    # steady state before checking tick-to-tick stability.
-    for _ in range(100):
+    # change -- and, on a lower-grip car (see CarSpec.drivetrain_layout),
+    # more wheelspin during the WOT launch above means gear 3 is reached at
+    # a lower real road speed, which can itself sag low enough at 40%
+    # throttle to warrant a further real downshift, then a multi-second
+    # gradual re-acceleration back up through the gears before things
+    # genuinely stop shifting -- verified directly (the default car, FWD,
+    # takes ~15s of real sim time to fully settle here). 20s is a generous
+    # margin past that, not a tight guess.
+    for _ in range(2000):
         session.tick(dt=0.01, throttle_percent=40.0)
 
     prev_wheel_torque = None

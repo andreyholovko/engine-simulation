@@ -5,7 +5,7 @@ from engine_sim.core.ecu import ECU
 from engine_sim.core.engine import ParametricEngine
 from engine_sim.core.torque_converter import TorqueConverter
 from engine_sim.core.turbo import Turbo
-from engine_sim.presets import EA888_GEN3_IS20, ROLLER_STANDARD, TIRE_STREET, TURBO_IS20
+from engine_sim.presets import EA888_GEN3_IS20, ROLLER_RWD, TIRE_STREET, TURBO_IS20
 from engine_sim.specs import AutomaticTransmissionSpec, ClutchSpec, TorqueConverterSpec
 from engine_sim.units import rad_s_to_rpm, rpm_to_rad_s
 
@@ -42,7 +42,7 @@ def _clutch_spec(capacity: float = 550.0) -> ClutchSpec:
 
 
 def _automatic_drivetrain(**auto_overrides) -> AutomaticDrivetrain:
-    return AutomaticDrivetrain(_auto_spec(**auto_overrides), _clutch_spec(), TIRE_STREET, ROLLER_STANDARD)
+    return AutomaticDrivetrain(_auto_spec(**auto_overrides), _clutch_spec(), TIRE_STREET, ROLLER_RWD)
 
 
 # --- TorqueConverter ---------------------------------------------------
@@ -326,7 +326,7 @@ def test_kickdown_downshifts_when_flooring_it_at_cruise():
     dt_train.gear = 6
     dt_train.omega_wheel = 60.0
     dt_train.omega_turbine = 60.0 * dt_train._overall_ratio
-    dt_train.omega_roller = 60.0 * TIRE_STREET.radius_m / ROLLER_STANDARD.radius_m
+    dt_train.omega_roller = 60.0 * TIRE_STREET.radius_m / ROLLER_RWD.radius_m
     low_cruise_rpm = rad_s_to_rpm(dt_train.omega_turbine)
 
     dt_train._decide_shift(throttle=1.0, rpm=low_cruise_rpm)
@@ -352,7 +352,7 @@ def test_kickdown_can_skip_multiple_gears():
     dt_train.gear = 6
     dt_train.omega_wheel = 20.0  # low speed for 6th gear -- a hard kickdown wants several gears down
     dt_train.omega_turbine = 20.0 * dt_train._overall_ratio
-    dt_train.omega_roller = 20.0 * TIRE_STREET.radius_m / ROLLER_STANDARD.radius_m
+    dt_train.omega_roller = 20.0 * TIRE_STREET.radius_m / ROLLER_RWD.radius_m
     low_speed_rpm = rad_s_to_rpm(dt_train.omega_turbine)
 
     dt_train._decide_shift(throttle=1.0, rpm=low_speed_rpm)
@@ -368,7 +368,7 @@ def test_easing_off_can_skip_multiple_upshifts():
     dt_train.gear = 1
     dt_train.omega_wheel = 60.0  # a speed that's comfortably cruise-able in a much taller gear
     dt_train.omega_turbine = 60.0 * dt_train._overall_ratio
-    dt_train.omega_roller = 60.0 * TIRE_STREET.radius_m / ROLLER_STANDARD.radius_m
+    dt_train.omega_roller = 60.0 * TIRE_STREET.radius_m / ROLLER_RWD.radius_m
     high_rpm_in_1st = rad_s_to_rpm(dt_train.omega_turbine)
 
     dt_train._decide_shift(throttle=0.05, rpm=high_rpm_in_1st)

@@ -38,7 +38,16 @@ extends Control
 @onready var vehicle_speed_value: Label = $Layout/ReadoutsSection/Readouts/VehicleSpeedValue
 @onready var slip_value: Label = $Layout/ReadoutsSection/Readouts/SlipValue
 @onready var clutch_value: Label = $Layout/ReadoutsSection/Readouts/ClutchValue
+@onready var drivetrain_value: Label = $Layout/ReadoutsSection/Readouts/DrivetrainValue
 @onready var graph = $Layout/DynoGraph
+
+# Beyond the tire's own peak-grip slip ratio (see engine_sim.core.tire) --
+# same threshold the drag scene's smoke effect uses (drag_race.gd's
+# SMOKE_SLIP_THRESHOLD) -- past this the tire is genuinely spinning, not
+# just working normally under load.
+const WHEELSPIN_SLIP_THRESHOLD := 0.18
+const SLIP_NORMAL_COLOR := Color(1, 1, 1, 1)
+const SLIP_SPINNING_COLOR := Color(1, 0.3, 0.2, 1)
 
 # Hardcoded, matching engine_sim/presets/tires.py's TIRE_CHOICES order
 # exactly -- same str-across-py4godot-boundary reasoning as CAR_LABELS.
@@ -67,9 +76,14 @@ const TRANSMISSION_LABELS := [
 # list in sync with CAR_CHOICES if you add a fourth car.
 const CAR_LABELS := [
 	"VW/Audi Mk7 GTI (EA888 Gen3, IS20)",
-	"BMW F30 340i (B58B30)",
+	"BMW F30 340i xDrive (B58B30)",
 	"Chevrolet C6 Corvette (LS2, NA)",
 ]
+
+# controller.drivetrain_layout_index (0/1/2) -> label -- same "int, not str"
+# reasoning as CAR_LABELS above; must match dyno_controller.py's own
+# _DRIVETRAIN_LAYOUT_INDEX mapping (0=FWD, 1=RWD, 2=AWD).
+const DRIVETRAIN_LABELS := ["FWD", "RWD", "AWD"]
 
 # Hardcoded per car, matching engine_sim/presets/__init__.py's
 # TURBO_CHOICES_BY_CAR order exactly (index 0 is always that car's own
@@ -166,8 +180,17 @@ func _process(_delta: float) -> void:
 
 	wheel_rpm_value.text = "%.0f" % controller.wheel_rpm
 	vehicle_speed_value.text = "%.1f" % controller.vehicle_speed_kmh
-	slip_value.text = "%+.3f" % controller.slip_ratio
+	var slip_ratio: float = controller.slip_ratio
+	# abs() is generically typed in GDScript (int/float/Vector*), so its
+	# return doesn't statically resolve to float/bool -- same ":=" inference
+	# failure documented in dyno_ui.gd's own _update_shift_buttons_enabled().
+	# Explicit `: bool` sidesteps it.
+	var is_spinning: bool = abs(slip_ratio) > WHEELSPIN_SLIP_THRESHOLD
+	slip_value.text = "%+.3f%s" % [slip_ratio, " SPIN!" if is_spinning else ""]
+	slip_value.add_theme_color_override("font_color", SLIP_SPINNING_COLOR if is_spinning else SLIP_NORMAL_COLOR)
 	clutch_value.text = "%.0f%% %s" % [controller.clutch_engagement * 100.0, "locked" if controller.clutch_locked else "SLIP"]
+	var drivetrain_layout_index: int = controller.drivetrain_layout_index
+	drivetrain_value.text = DRIVETRAIN_LABELS[drivetrain_layout_index]
 	_update_gear_label()
 
 	if controller.power_pull_active:

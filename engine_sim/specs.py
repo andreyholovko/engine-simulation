@@ -152,6 +152,16 @@ class CarSpec:
     name: str
     engine_spec: EngineSpec
     turbo_spec: TurboSpec
+    # Which wheels put power down -- "fwd", "rwd", or "awd". Determines which
+    # RollerSpec DynoSession picks for this car (see presets.
+    # ROLLER_BY_DRIVETRAIN_LAYOUT): a real drivetrain layout is the single
+    # biggest factor in how much of the car's weight is actually available
+    # for traction under acceleration, which is exactly what
+    # RollerSpec.driven_axle_weight_fraction represents -- FWD launches on
+    # less of the car's weight than RWD (acceleration transfers weight OFF
+    # the front axle, right when it needs grip most), AWD on effectively all
+    # of it (both axles are putting power down at once).
+    drivetrain_layout: str = "rwd"
 
 
 @dataclass(frozen=True)
@@ -305,9 +315,18 @@ class RollerSpec:
     inertia_kgm2: float  # the physical drum's own inertia
     vehicle_mass_kg: float
     parasitic_torque_nm: float = 15.0  # roller bearing + driveline drag, always opposing motion
-    # Deliberately not modeling weight transfer/aero downforce -- a fixed
-    # static split of the vehicle's weight onto the driven axle/tire this
-    # roller represents, not a full suspension/chassis dynamics model.
+    # Deliberately not modeling *dynamic* weight transfer under braking/
+    # cornering or aero downforce -- a fixed split of the vehicle's weight
+    # onto the driven axle/tire this roller represents, not a full
+    # suspension/chassis dynamics model. It IS how drivetrain layout gets
+    # represented, though (see presets.ROLLER_BY_DRIVETRAIN_LAYOUT/
+    # CarSpec.drivetrain_layout): a FWD car's fixed value here is lower than
+    # a RWD car's (launch-under-acceleration weight transfer moves weight
+    # OFF the front, right when it needs grip most), and AWD's is close to
+    # 1.0 (both axles are putting power down into the same tire model at
+    # once, so effectively the whole car's weight is available for
+    # traction) -- a coarse, single-number stand-in for what a full 4-wheel
+    # model would derive dynamically, not a literal static weight split.
     driven_axle_weight_fraction: float = 0.5
     # Simple quadratic aero drag (F = 0.5*rho*Cd*A*v^2) -- without it, top
     # gear never actually tops out (nothing opposes speed except a flat
